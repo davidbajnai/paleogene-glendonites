@@ -15,8 +15,7 @@ export_tables_dir = Path(__file__).resolve().parent.parent / "export_tables" / "
 
 # Apply plot style ------------------------------------------------------------
 apply_plot_style()
-plt.rcParams["figure.figsize"] = (9, 4)
-plt.rcParams.update({'font.size': 7})
+plt.rcParams["figure.figsize"] = (8, 3.5)
 
 
 # This function averages the scaled data from multiple measurement periods
@@ -84,6 +83,7 @@ export_table(df_avg,
 
 # Figures ---------------------------------------------------------------------
 fig, (ax1, ax2) = plt.subplots(1, 2)
+setup_axes(fig)
 
 # Assign colors and markers to samples
 df.sort_values(by="SampleName", inplace=True)
@@ -109,8 +109,6 @@ ylim = ax1.get_ylim()
 xlim = ax1.get_xlim()
 ax1.set_ylabel(r"$\Delta\prime^{17}$O (ppm, CO$_2$)")
 ax1.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW, CO$_2$)")
-ax1.text(0.02, 0.98, "e", size=14, ha="left", va="top",
-         transform=ax1.transAxes, fontweight="bold")
 
 # Subplot B: scaled sample averages
 for cat in categories:
@@ -122,14 +120,12 @@ for cat in categories:
                  xerr=df_avg["d18O_error"],
                  fmt="none", color="#cacaca", zorder=0)
 
-ax2.legend(loc='upper right', bbox_to_anchor=(1.36, 1))
+add_standard_legend(ax2, loc='upper right', bbox_to_anchor=(1.5, 1.02))
 
 # Axis properties
 ax2.set_ylim(ylim)
 ax2.set_xlim(xlim)
 ax2.set_ylabel(r"$\Delta\prime^{17}$O (ppm)")
 ax2.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW)")
-ax2.text(0.02, 0.98, "f", size=14, ha="left", va="top",
-         transform=ax2.transAxes, fontweight="bold")
 
 save_figure(fig, figures_dir, f"combined_replicates")

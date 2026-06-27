@@ -101,7 +101,7 @@ def setup_axes(fig):
 def add_standard_legend(ax, **overrides):
     legend_options = {
         "loc": "upper left",
-        "markerscale": 3,
+        # "markerscale": 3,
         "frameon": True,
         "fancybox": False,
         "edgecolor": "black",
