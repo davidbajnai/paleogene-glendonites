@@ -129,3 +129,7 @@ ax2.set_ylabel(r"$\Delta\prime^{17}$O (ppm)")
 ax2.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW)")
 
 save_figure(fig, figures_dir, f"combined_replicates")
+
+# Print average reproducibilty of the measurements:
+print(
+    f"Average reproducibility (∆'17O): {df_avg['Dp17O_error'].mean():0.0f} ppm, d18O: {df_avg['d18O_error'].mean():0.1f} ‰")

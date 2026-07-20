@@ -1,13 +1,13 @@
-# Supplementary material for:</br>Eocene glendonites
+# Supplementary material for:</br>Paleogene glendonites
 
 ## Graphical abstract
 ![Graphical abstract](figures/png/glendonites.png)
 
 ## Reference
-The paper is currently in preparation.
+Vickers, M. L., Bajnai, D., Bernasconi, S. M., Fiebig, J., Longman, J., Anjana Gireesh, S., Evans, D., Harper, D. T., Jolley, D., Looser, N., Frieling, J., Rickaby, R. E., Pack, A., Pahnke, K., & Jones, M. T. (submitted). Clumped isotopes reveal cold early Paleogene bottom water temperatures.
 
 >[!TIP]
->This repository contains only the triple oxygen isotope data from the manuscript.
+>This repository contains the triple oxygen isotope data and data processing scripts used in the manuscript, as well as the dual clumped isotope data required for plotting. Additional supplementary data associated with the manuscript are available in the paper’s Supplementary Information.
 
 ## Codes
 - `1_scale_data_KIEL.py` scales KIEL replicate measurements against accepted NBS18 and IAEA603 reference values. It exports the scaled KIEL replicate table and the KIEL sample-average table, and it generates the KIEL replicate diagnostic figures.

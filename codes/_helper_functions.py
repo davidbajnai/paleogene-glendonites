@@ -99,10 +99,7 @@ def d17O_cc(equilibrium_temperatures, d18Ow):
 
 
 def applyAFF(d18O_CO2, d17O_CO2, mineral, temperature_C):
-    """Apply acid fractionation correction for carbonate-derived CO2.
 
-    Supported temperatures are 25 and 90 (deg C).
-    """
     mineral = mineral.lower()
 
     # Acid fractionation factors at 90 C

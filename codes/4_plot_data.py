@@ -66,8 +66,16 @@ def plot_calcite_equilibrium(Dp17Ow, d18Ow, Tmin, Tmax, ax, color="k"):
 # Import data -----------------------------------------------------------------
 df_carbonates = pd.read_csv(export_tables_dir / "combined_replicate_data.csv")
 
-reconstruction_temperature_C = 4
-reconstruction_temperature_error_C = 4
+reconstruction_temperature_by_age_C = {
+    "pre-PETM": 5,
+    "PETM": 3,
+    "early Eocene": 7,
+}
+reconstruction_temperature_error_by_age_C = {
+    "pre-PETM": 3,
+    "PETM": 2,
+    "early Eocene": 2,
+}
 non_modern = df_carbonates["Age"] != "modern"
 
 df_carbonates["temperature"] = np.nan
@@ -75,8 +83,22 @@ df_carbonates["temperature_error"] = np.nan
 df_carbonates["reconstructed_water_d18O"] = np.nan
 df_carbonates["reconstructed_water_Dp17O"] = np.nan
 
-df_carbonates.loc[non_modern, "temperature"] = reconstruction_temperature_C
-df_carbonates.loc[non_modern, "temperature_error"] = reconstruction_temperature_error_C
+df_carbonates["temperature"] = df_carbonates["Age"].map(reconstruction_temperature_by_age_C)
+df_carbonates["temperature_error"] = df_carbonates["Age"].map(reconstruction_temperature_error_by_age_C)
+
+missing_temperature_ages = df_carbonates.loc[
+    non_modern
+    & (
+        df_carbonates["temperature"].isna()
+        | df_carbonates["temperature_error"].isna()
+    ),
+    "Age",
+].unique()
+if len(missing_temperature_ages) > 0:
+    raise ValueError(
+        "Missing predefined temperature values for ages: "
+        + ", ".join(map(str, missing_temperature_ages))
+    )
 
 rectangle_columns = [
     "reconstructed_water_d18O_prime_min",
@@ -103,6 +125,11 @@ if non_modern.any():
     ]
 
 export_table(df_carbonates, "all_data")
+
+# print reconstruction uncertanty as difference between min and max values averaged
+reconstruction_uncertainty_Dp17O = np.mean(df_carbonates["reconstructed_water_Dp17O_max"].abs() - df_carbonates["reconstructed_water_Dp17O_min"].abs())/2
+reconstruction_uncertainty_d18O = np.mean(unprime(df_carbonates["reconstructed_water_d18O_prime_max"]) - unprime(df_carbonates["reconstructed_water_d18O_prime_min"]))/2
+print(f"Average reconstruction uncertainty: ∆'17O) = {reconstruction_uncertainty_Dp17O:.0f} ppm, δ18O = {reconstruction_uncertainty_d18O:.1f} ‰\n")
 
 # Plotting --------------------------------------------------------------------
 fig, ax = plt.subplots()
@@ -265,10 +292,20 @@ ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"],
 ax.scatter(prime(df_mix["mix_d18O"].iloc[-1]), df_mix["mix_Dp17O"].iloc[[-1]],
             marker = "*", ec="#3CB5AE", fc="w", s=60, zorder=10)
 ax.text(prime(df_mix["mix_d18O"].iloc[-1]) + 2, df_mix["mix_Dp17O"].iloc[-1],
-        "modeled\nmeteoric water",
+        "Eocene\nmeteoric water",
         va="center", ha="left", color="#3CB5AE", fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
+df_mix = mix_d17O(d18O_A=d18O_ice_free, D17O_A=Dp17O_ice_free,
+                  d18O_B=d18O_meteoric_water, D17O_B=Dp17O_meteoric_water, step=10)
+ax.scatter(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"], marker="|", c="k", s=1, zorder = 9)
+ax.annotate("50%",
+            (prime(df_mix["mix_d18O"].iloc[5]), df_mix["mix_Dp17O"].iloc[5]),
+            xytext=(1, 10), textcoords="offset points",
+            va="center", ha="left", color="k", fontsize=4,
+            arrowprops=dict(arrowstyle="->", color="k", lw=0.5,
+                    connectionstyle="arc3,rad=-0.2", shrinkA=0),
+            )
 
 # Add ice to the mix ----------------------------------------------------------
 
@@ -279,17 +316,15 @@ ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"], color="#55B9E6", linesty
 ax.scatter(prime(df_mix["mix_d18O"].iloc[-1]), df_mix["mix_Dp17O"].iloc[[-1]],
             marker = "*", ec="#55B9E6", fc="w", s=60, zorder=100)
 ax.text(prime(d18O_ice) + 2, Dp17O_ice,
-        "modeled\nsnowmelt",
+        "ice- or\nsnowmelt",
         va="center", ha="left", color="#55B9E6", fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
 
 
-df_mix_meteoric_ice = mix_d17O(d18O_A=d18O_meteoric_water, D17O_A=Dp17O_meteoric_water,
-                               d18O_B=d18O_ice, D17O_B=Dp17O_ice, step=10)
 
-# Add back the original endmember line (meteoric ↔ snowmelt)
-# while preserving the current gradient-colored fan.
+df_mix_meteoric_ice = mix_d17O(d18O_A=d18O_meteoric_water, D17O_A=Dp17O_meteoric_water,
+                               d18O_B=d18O_ice, D17O_B=Dp17O_ice, step=100)
 ax.plot(
     prime(df_mix_meteoric_ice["mix_d18O"]),
     df_mix_meteoric_ice["mix_Dp17O"],
@@ -298,6 +333,18 @@ ax.plot(
     lw=1.2,
     zorder=1,
 )
+df_mix_meteoric_ice = mix_d17O(d18O_A=d18O_meteoric_water, D17O_A=Dp17O_meteoric_water,
+                               d18O_B=d18O_ice, D17O_B=Dp17O_ice, step=4)
+ax.scatter(prime(df_mix_meteoric_ice["mix_d18O"]), df_mix_meteoric_ice["mix_Dp17O"], marker="|", c="k", s=1, zorder = 9)
+ax.annotate("50%",
+            (prime(df_mix_meteoric_ice["mix_d18O"].iloc[2]), df_mix_meteoric_ice["mix_Dp17O"].iloc[2]),
+            xytext=(1, 10), textcoords="offset points",
+            va="center", ha="left", color="k", fontsize=4,
+            arrowprops=dict(arrowstyle="->", color="k", lw=0.5,
+                    connectionstyle="arc3,rad=-0.2", shrinkA=0),
+            )
+
+
 
 # for every point in df_mix, draw mixing line between the endmember and ice-free ocean
 meteoric_rgb = np.array(mcolors.to_rgb("#3CB5AE"))
@@ -311,6 +358,10 @@ for i in range(len(df_mix_meteoric_ice)):
                   d18O_B=df_mix_meteoric_ice["mix_d18O"].iloc[i], D17O_B=df_mix_meteoric_ice["mix_Dp17O"].iloc[i],
                   step=50)
     ax.scatter(prime(mix["mix_d18O"]), mix["mix_Dp17O"], fc=line_color, ec ="none", zorder=0, s=1, marker=".")
+    mix = mix_d17O(d18O_A=d18O_ice_free, D17O_A=Dp17O_ice_free,
+                  d18O_B=df_mix_meteoric_ice["mix_d18O"].iloc[i], D17O_B=df_mix_meteoric_ice["mix_Dp17O"].iloc[i],
+                  step=10)
+    ax.scatter(prime(mix["mix_d18O"]), mix["mix_Dp17O"], marker="|", c="k", s=1, zorder = 9)
 
 
 # Axis and legend settings ----------------------------------------------------
