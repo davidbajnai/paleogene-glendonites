@@ -68,6 +68,12 @@ def plot_calcite_equilibrium(Dp17Ow, d18Ow, Tmin, Tmax, ax, color="k"):
 # Import data -----------------------------------------------------------------
 df_carbonates = pd.read_csv(export_tables_dir / "combined_replicate_data.csv")
 
+# Temperature assignment:
+# Not all samples analyzed for Δ’17O have corresponding Δ47 measurements,
+# while some additional samples were analyzed only for Δ47.
+# Where available, sample-specific temperatures derived from Δ47 were used;
+# otherwise, the mean Δ47-derived temperature for the corresponding age group
+# was calculated from the manuscript's clumped isotope supplementary table.
 reconstruction_temperature_by_age_C = {
     "pre-PETM": 5,
     "PETM": 3,
@@ -80,19 +86,21 @@ reconstruction_temperature_error_by_age_C = {
 }
 non_modern = df_carbonates["age"] != "modern"
 
-df_carbonates["temperature"] = np.nan
-df_carbonates["temperature_error"] = np.nan
 df_carbonates["reconstructed_water_d18O"] = np.nan
 df_carbonates["reconstructed_water_Dp17O"] = np.nan
 
-df_carbonates["temperature"] = df_carbonates["age"].map(reconstruction_temperature_by_age_C)
-df_carbonates["temperature_error"] = df_carbonates["age"].map(reconstruction_temperature_error_by_age_C)
+df_carbonates["clumped_T"] = df_carbonates["clumped_T"].fillna(
+    df_carbonates["age"].map(reconstruction_temperature_by_age_C)
+)
+df_carbonates["clumped_T_err"] = df_carbonates["clumped_T_err"].fillna(
+    df_carbonates["age"].map(reconstruction_temperature_error_by_age_C)
+)
 
 missing_temperature_ages = df_carbonates.loc[
     non_modern
     & (
-        df_carbonates["temperature"].isna()
-        | df_carbonates["temperature_error"].isna()
+        df_carbonates["clumped_T"].isna()
+        | df_carbonates["clumped_T_err"].isna()
     ),
     "age",
 ].unique()
@@ -113,10 +121,10 @@ if non_modern.any():
     reconstructed = reconstruct_water_Dp17O(
         df_carbonates.loc[non_modern, "d18O_AC"],
         df_carbonates.loc[non_modern, "Dp17O_AC"],
-        df_carbonates.loc[non_modern, "temperature"],
+        df_carbonates.loc[non_modern, "clumped_T"],
         d18O_error=df_carbonates.loc[non_modern, "d18O_error"],
         Dp17O_error=df_carbonates.loc[non_modern, "Dp17O_error"],
-        temperature_error_C=df_carbonates.loc[non_modern, "temperature_error"],
+        temperature_error_C=df_carbonates.loc[non_modern, "clumped_T_err"],
     )
     reconstructed_columns = [
         "reconstructed_water_d18O",
@@ -184,11 +192,18 @@ eq = plot_calcite_equilibrium(
 
 # Plot modeled fluids -----------------
 
-ax.text(-9, -35,
+ax.text(-11, -38,
         "reconstructed\nparent waters",
         va="center", ha="right", color="k", fontsize=6,
-        # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
+ax.annotate("",
+            (-11, -38),
+            xytext=(10, 10),
+            textcoords="offset points",
+            va="center", ha="left", color="k", fontsize=4,
+            arrowprops=dict(arrowstyle="<-", color="k", lw=0.5,
+                    connectionstyle="arc3,rad=-0.2", shrinkA=0),
+            )
 
 # Plot samples
 order = ['pre-PETM', 'PETM', 'early Eocene', 'modern']
@@ -243,10 +258,41 @@ if not df_reconstructed.empty:
             age_dat["reconstructed_water_Dp17O_max"]
             - age_dat["reconstructed_water_Dp17O_min"]
         ) / 2.0
-        mean_d18O_uncertainty = sample_d18O_uncertainties.mean()
-        mean_Dp17O_uncertainty = sample_Dp17O_uncertainties.mean()
-        parent_water_d18O_uncertainties.extend(sample_d18O_uncertainties)
-        parent_water_Dp17O_uncertainties.extend(sample_Dp17O_uncertainties)
+        sample_count = len(age_dat)
+
+        # Propagate the independent per-sample reconstruction errors into the
+        # group mean and combine them with the standard error derived from the
+        # between-sample 1 SD. For a single sample, the latter is undefined and
+        # contributes zero additional variance.
+        propagated_d18O_mean_error = (
+            np.sqrt(np.sum(sample_d18O_uncertainties**2)) / sample_count
+        )
+        propagated_Dp17O_mean_error = (
+            np.sqrt(np.sum(sample_Dp17O_uncertainties**2)) / sample_count
+        )
+        if sample_count > 1:
+            d18O_standard_error = (
+                age_dat["reconstructed_water_d18O"].std(ddof=1)
+                / np.sqrt(sample_count)
+            )
+            Dp17O_standard_error = (
+                age_dat["reconstructed_water_Dp17O"].std(ddof=1)
+                / np.sqrt(sample_count)
+            )
+        else:
+            d18O_standard_error = 0.0
+            Dp17O_standard_error = 0.0
+
+        mean_d18O_uncertainty = np.hypot(
+            propagated_d18O_mean_error,
+            d18O_standard_error,
+        )
+        mean_Dp17O_uncertainty = np.hypot(
+            propagated_Dp17O_mean_error,
+            Dp17O_standard_error,
+        )
+        parent_water_d18O_uncertainties.append(mean_d18O_uncertainty)
+        parent_water_Dp17O_uncertainties.append(mean_Dp17O_uncertainty)
         ax.scatter(
             prime(mean_d18O_water),
             mean_Dp17O_water,
@@ -258,14 +304,16 @@ if not df_reconstructed.empty:
         )
         print(
             f"Modeled parent water for {age}: "
-            f"δ18O = {mean_d18O_water:.1f} ‰, "
-            f"Δ’17O = {mean_Dp17O_water:.0f} ppm"
+            f"δ18O = {mean_d18O_water:.1f} ± {mean_d18O_uncertainty:.1f} ‰, "
+            f"Δ’17O = {mean_Dp17O_water:.0f} ± {mean_Dp17O_uncertainty:.0f} ppm "
+            "(propagated 1 SD)"
         )
 
     print(
         "Average parent-water reconstruction uncertainty: "
         f"δ18O = {np.nanmean(parent_water_d18O_uncertainties):.1f} ‰, "
-        f"Δ’17O = {np.nanmean(parent_water_Dp17O_uncertainties):.0f} ppm"
+        f"Δ’17O = {np.nanmean(parent_water_Dp17O_uncertainties):.0f} ppm "
+        "(mean propagated 1 SD)"
         "\n"
     )
 
