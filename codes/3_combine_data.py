@@ -30,18 +30,18 @@ def average_data(df):
     df_std = df.groupby('SampleName').std().reset_index()
     df_std = df_std.rename(columns={'d18O_AC': 'd18O_error',
                            'd17O_AC': 'd17O_error', 'Dp17O_AC': 'Dp17O_error'})
-    df_std['Replicates'] = df.groupby(
+    df_std['replicates'] = df.groupby(
         'SampleName').size().reset_index(name='counts')['counts']
 
     confidence_level = 0.95
     alpha = 1 - confidence_level
-    dof = df_std['Replicates'] - 1
+    dof = df_std['replicates'] - 1
     t_crit = pd.Series(np.nan, index=df_std.index, dtype=float)
     valid = dof > 0
     t_crit.loc[valid] = t.ppf(1 - alpha / 2, dof.loc[valid])
 
     for col in ['d18O_error', 'd17O_error', 'Dp17O_error']:
-        standard_error = df_std[col] / np.sqrt(df_std['Replicates'])
+        standard_error = df_std[col] / np.sqrt(df_std['replicates'])
         df_std[col] = standard_error * t_crit
 
     dfMerged = df_mean.merge(df_std, on='SampleName')
@@ -78,7 +78,7 @@ df_avg = df_avg.merge(info, on='SampleName')
 export_table(df_avg,
              "combined_replicate_data",
              print_columns=["SampleName", "d18O_AC",
-                            "Dp17O_AC",  "Dp17O_error", "Replicates"]
+                            "Dp17O_AC",  "Dp17O_error", "replicates"]
              )
 
 # Figures ---------------------------------------------------------------------
@@ -132,4 +132,4 @@ save_figure(fig, figures_dir, f"combined_replicates")
 
 # Print average reproducibilty of the measurements:
 print(
-    f"Average reproducibility (∆'17O): {df_avg['Dp17O_error'].mean():0.0f} ppm, d18O: {df_avg['d18O_error'].mean():0.1f} ‰")
+    f"Average reproducibility (∆'17O): {df_avg['Dp17O_error'].mean():0.1f} ppm, d18O: {df_avg['d18O_error'].mean():0.2f} ‰")

@@ -25,6 +25,28 @@ def d17O(d18O, Dp17O):
     return unprime(Dp17O / 1000 + 0.528 * prime(d18O))
 
 
+def a18_cc(T):
+    return np.exp((17.57 * 1000 / T - 30.55) / 1000)
+    # From the ikaite_water_equilibrium.py script
+
+
+def theta_cc(T):
+    return -1.47/T + 0.5305
+    # From the ikaite_water_equilibrium.py script
+
+
+def a17_cc(T):
+    return a18_cc(T)**theta_cc(T)
+
+
+def d18O_cc(equilibrium_temperatures, d18Ow):
+    return a18_cc(equilibrium_temperatures) * (d18Ow+1000) - 1000
+
+
+def d17O_cc(equilibrium_temperatures, d18Ow):
+    return a17_cc(equilibrium_temperatures) * (d18Ow+1000) - 1000
+
+
 def mix_d17O(d18O_A, d17O_A=None, D17O_A=None, d18O_B=None, d17O_B=None, D17O_B=None, step=100):
     ratio_B = np.arange(0, 1+1/step, 1/step)
 
@@ -42,60 +64,6 @@ def mix_d17O(d18O_A, d17O_A=None, D17O_A=None, d18O_B=None, d17O_B=None, D17O_B=
     df = pd.DataFrame(
         {'mix_d17O': mix_d17O, 'mix_d18O': mix_d18O, 'mix_Dp17O': mix_D17O, 'xB': xB})
     return df
-
-
-def a18_cc(T):
-
-    # Kim et O'Neil (1997) - calcite
-    return np.exp((18.04 * 1000 / T - 32.18) / 1000)
-
-    # Alternative equations:
-
-    # Daeron et al. (2019) - calcite
-    # return np.exp((17.57 * 1000 / T - 29.13) / 1000)
-
-    # Guo and Zhou (2019) – aragonite
-    # return 0.0201 * (1000 / T) + 0.9642
-
-    # Hayles et al. (2018) - calcite
-    # B_calcite = 7.027321E+14 / T**7 + -1.633009E+13 / T**6 + 1.463936E+11 / T**5 + -5.417531E+08 / T**4 + -4.495755E+05 / T**3  + 1.307870E+04 / T**2 + -5.393675E-01 / T + 1.331245E-04
-    # B_water = -6.705843E+15 / T**7 + 1.333519E+14 / T**6 + -1.114055E+12 / T**5 + 5.090782E+09 / T**4 + -1.353889E+07 / T**3 + 2.143196E+04 / T**2 + 5.689300 / T + -7.839005E-03
-    # return np.exp(B_calcite) / np.exp(B_water)
-
-
-def theta_cc(T):
-
-    # Wostbrock et al. (2020) - aragonite
-    # return -1.53 / T + 0.5305
-
-    # Alternative equations:
-
-    # Wostbrock et al. (2020) - calcite
-    # return -1.39 / T + 0.5305
-
-    # Guo and Zhou (2019) – aragonite
-    return 59.1047/T**2 + -1.4089/T + 0.5297
-
-    # Hayles et al. (2018) - calcite
-    # K_calcite = 1.019124E+09 / T**5 + -2.117501E+07 / T**4 + 1.686453E+05 / T**3 + -5.784679E+02 / T**2 + 1.489666E-01 / T + 0.5304852
-    # B_calcite = 7.027321E+14 / T**7 + -1.633009E+13 / T**6 + 1.463936E+11 / T**5 + -5.417531E+08 / T**4 + -4.495755E+05 / T**3  + 1.307870E+04 / T**2 + -5.393675E-01 / T + 1.331245E-04
-    # K_water = 7.625734E+06 / T**5 + 1.216102E+06 / T**4 + -2.135774E+04 / T**3 + 1.323782E+02 / T**2 + -4.931630E-01 / T + 0.5306551
-    # B_water = -6.705843E+15 / T**7 + 1.333519E+14 / T**6 + -1.114055E+12 / T**5 + 5.090782E+09 / T**4 + -1.353889E+07 / T**3 + 2.143196E+04 / T**2 + 5.689300 / T + -7.839005E-03
-    # a18 = np.exp(B_calcite) / np.exp(B_water)
-    # return K_calcite + (K_calcite-K_water) * (B_water / np.log(a18))
-
-
-def a17_cc(T):
-    return a18_cc(T)**theta_cc(T)
-
-
-def d18O_cc(equilibrium_temperatures, d18Ow):
-    return a18_cc(equilibrium_temperatures) * (d18Ow+1000) - 1000
-
-
-def d17O_cc(equilibrium_temperatures, d18Ow):
-    return a17_cc(equilibrium_temperatures) * (d18Ow+1000) - 1000
-
 
 
 def applyAFF(d18O_CO2, d17O_CO2, mineral, temperature_C):

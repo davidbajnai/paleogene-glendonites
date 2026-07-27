@@ -131,18 +131,18 @@ def average_data(df):
     df_std = df.groupby('SampleName').std().reset_index()
     df_std = df_std.rename(columns={'d18O_scaled': 'd18O_error',
                            'd17O_scaled': 'd17O_error', 'Dp17O_scaled': 'Dp17O_error'})
-    df_std['Replicates'] = df.groupby(
+    df_std['replicates'] = df.groupby(
         'SampleName').size().reset_index(name='counts')['counts']
 
     confidence_level = 0.68
     alpha = 1 - confidence_level
-    dof = df_std['Replicates'] - 1
+    dof = df_std['replicates'] - 1
     t_crit = pd.Series(np.nan, index=df_std.index, dtype=float)
     valid = dof > 0
     t_crit.loc[valid] = t.ppf(1 - alpha / 2, dof.loc[valid])
 
     for col in ['d18O_error', 'd17O_error', 'Dp17O_error']:
-        standard_error = df_std[col] / np.sqrt(df_std['Replicates'])
+        standard_error = df_std[col] / np.sqrt(df_std['replicates'])
         df_std[col] = standard_error * t_crit
 
     dfMerged = df_mean.merge(df_std, on='SampleName')
@@ -175,7 +175,7 @@ df_avg = df_avg.merge(info, on='SampleName')
 export_table(df_avg,
              "replicate_data_KIEL_averaged",
              print_columns=["SampleName", "d18O_AC",
-                            "Dp17O_AC",  "Dp17O_error", "Replicates"]
+                            "Dp17O_AC",  "Dp17O_error", "replicates"]
              )
 
 

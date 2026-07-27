@@ -14,9 +14,11 @@ from waters import calculate_water_endmembers
 
 
 # Define directories ----------------------------------------------------------
-figures_dir = Path(__file__).resolve().parent.parent / "figures"
-export_tables_dir = Path(__file__).resolve().parent.parent / "export_tables" / "csv"
+sources_dir = Path(__file__).resolve().parent.parent
+figures_dir = sources_dir / "figures"
+export_tables_dir = sources_dir / "export_tables" / "csv"
 
+# Get water endmembers ------------------------------------------------------
 d18O_ice_free, Dp17O_ice_free, d18O_ice, Dp17O_ice, d18O_modern_seawater, Dp17O_modern_seawater, d18O_meteoric_water, Dp17O_meteoric_water = calculate_water_endmembers()
 
 
@@ -76,15 +78,15 @@ reconstruction_temperature_error_by_age_C = {
     "PETM": 2,
     "early Eocene": 2,
 }
-non_modern = df_carbonates["Age"] != "modern"
+non_modern = df_carbonates["age"] != "modern"
 
 df_carbonates["temperature"] = np.nan
 df_carbonates["temperature_error"] = np.nan
 df_carbonates["reconstructed_water_d18O"] = np.nan
 df_carbonates["reconstructed_water_Dp17O"] = np.nan
 
-df_carbonates["temperature"] = df_carbonates["Age"].map(reconstruction_temperature_by_age_C)
-df_carbonates["temperature_error"] = df_carbonates["Age"].map(reconstruction_temperature_error_by_age_C)
+df_carbonates["temperature"] = df_carbonates["age"].map(reconstruction_temperature_by_age_C)
+df_carbonates["temperature_error"] = df_carbonates["age"].map(reconstruction_temperature_error_by_age_C)
 
 missing_temperature_ages = df_carbonates.loc[
     non_modern
@@ -92,7 +94,7 @@ missing_temperature_ages = df_carbonates.loc[
         df_carbonates["temperature"].isna()
         | df_carbonates["temperature_error"].isna()
     ),
-    "Age",
+    "age",
 ].unique()
 if len(missing_temperature_ages) > 0:
     raise ValueError(
@@ -126,11 +128,6 @@ if non_modern.any():
 
 export_table(df_carbonates, "all_data")
 
-# print reconstruction uncertanty as difference between min and max values averaged
-reconstruction_uncertainty_Dp17O = np.mean(df_carbonates["reconstructed_water_Dp17O_max"].abs() - df_carbonates["reconstructed_water_Dp17O_min"].abs())/2
-reconstruction_uncertainty_d18O = np.mean(unprime(df_carbonates["reconstructed_water_d18O_prime_max"]) - unprime(df_carbonates["reconstructed_water_d18O_prime_min"]))/2
-print(f"Average reconstruction uncertainty: ∆'17O) = {reconstruction_uncertainty_Dp17O:.0f} ppm, δ18O = {reconstruction_uncertainty_d18O:.1f} ‰\n")
-
 # Plotting --------------------------------------------------------------------
 fig, ax = plt.subplots()
 
@@ -139,13 +136,13 @@ dark_gray = "#231F20"
 light_gray = "#B3B4B4"
 
 sample_styles = {
-    "pre-PETM": {"fc": light_blue, "ec": light_blue, "group": "Age"},
-    "PETM": {"fc": light_blue, "ec": C["red"], "group": "Age"},
-    "early Eocene": {"fc": light_blue, "ec": "black", "group": "Age"},
-    "Congo fan": {"fc": dark_gray, "ec": dark_gray, "group": "Site"},
-    "South Georgia": {"fc": light_gray, "ec": dark_gray, "group": "Site"},
-    "Bransfield Strait": {"fc": dark_gray, "ec": light_gray, "group": "Site"},
-    "Nankai Trough": {"fc": "white", "ec": "black", "group": "Site"},
+    "pre-PETM": {"fc": light_blue, "ec": light_blue, "group": "age"},
+    "PETM": {"fc": light_blue, "ec": C["red"], "group": "age"},
+    "early Eocene": {"fc": light_blue, "ec": "black", "group": "age"},
+    "Congo fan": {"fc": dark_gray, "ec": dark_gray, "group": "site"},
+    "South Georgia": {"fc": light_gray, "ec": dark_gray, "group": "site"},
+    "Bransfield Strait": {"fc": dark_gray, "ec": light_gray, "group": "site"},
+    "Nankai Trough": {"fc": "white", "ec": "black", "group": "site"},
 }
 
 # Plot modern seawater --------------------------------------------------------
@@ -157,7 +154,7 @@ ax.text(prime(d18O_modern_seawater)+2, Dp17O_modern_seawater,
         )
 # Plot calcite line for modern seawater
 eq = plot_calcite_equilibrium(
-    Dp17O_modern_seawater, d18O_modern_seawater, 0, 15, ax, "#858379")
+    Dp17O_modern_seawater, d18O_modern_seawater, 0, 10, ax, "#858379")
 ax.annotate(
     str(round(eq.iloc[0, 2])) + " °C",
     (prime(eq.iloc[0, 0]), eq.iloc[0, 1]),
@@ -183,7 +180,7 @@ ax.text(prime(d18O_ice_free) + 2, Dp17O_ice_free,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
 eq = plot_calcite_equilibrium(
-    Dp17O_ice_free, d18O_ice_free, 0, 15, ax, "#1455C0")
+    Dp17O_ice_free, d18O_ice_free, 0, 10, ax, "#1455C0")
 
 # Plot modeled fluids -----------------
 
@@ -197,25 +194,25 @@ ax.text(-9, -35,
 order = ['pre-PETM', 'PETM', 'early Eocene', 'modern']
 order_map = {key: i for i, key in enumerate(order)}
 df_carbonates = df_carbonates.sort_values(
-    by='Age',
+    by='age',
     key=lambda x: x.map(lambda val: next((order_map[k] for k in order if str(val).startswith(k)), float('inf')))
 )
 
 legend_handles = []
 legend_sections = {
-    "Age": "Exp 396 glendonites",
-    "Site": "modern ikaites",
+    "age": "Exp 396 glendonites",
+    "site": "modern ikaites",
 }
 current_legend_section = None
 
-df_reconstructed = df_carbonates[df_carbonates["Age"] != "modern"].copy()
+df_reconstructed = df_carbonates[df_carbonates["age"] != "modern"].copy()
 if not df_reconstructed.empty:
     for _, row in df_reconstructed.iterrows():
         x_min = row["reconstructed_water_d18O_prime_min"]
         x_max = row["reconstructed_water_d18O_prime_max"]
         y_min = row["reconstructed_water_Dp17O_min"]
         y_max = row["reconstructed_water_Dp17O_max"]
-        rectangle_color = sample_styles[row["Age"]]["ec"]
+        rectangle_color = sample_styles[row["age"]]["ec"]
         ax.add_patch(Rectangle(
             (x_min, y_min),
             x_max - x_min,
@@ -226,16 +223,30 @@ if not df_reconstructed.empty:
         ))
 
     age_mean_handles = []
+    parent_water_d18O_uncertainties = []
+    parent_water_Dp17O_uncertainties = []
     for age in order:
         if age == "modern":
             continue
-        age_dat = df_reconstructed[df_reconstructed["Age"] == age]
+        age_dat = df_reconstructed[df_reconstructed["age"] == age]
         if age_dat.empty:
             continue
 
         style = sample_styles[age]
         mean_d18O_water = age_dat["reconstructed_water_d18O"].mean()
         mean_Dp17O_water = age_dat["reconstructed_water_Dp17O"].mean()
+        sample_d18O_uncertainties = (
+            unprime(age_dat["reconstructed_water_d18O_prime_max"])
+            - unprime(age_dat["reconstructed_water_d18O_prime_min"])
+        ) / 2.0
+        sample_Dp17O_uncertainties = (
+            age_dat["reconstructed_water_Dp17O_max"]
+            - age_dat["reconstructed_water_Dp17O_min"]
+        ) / 2.0
+        mean_d18O_uncertainty = sample_d18O_uncertainties.mean()
+        mean_Dp17O_uncertainty = sample_Dp17O_uncertainties.mean()
+        parent_water_d18O_uncertainties.extend(sample_d18O_uncertainties)
+        parent_water_Dp17O_uncertainties.extend(sample_Dp17O_uncertainties)
         ax.scatter(
             prime(mean_d18O_water),
             mean_Dp17O_water,
@@ -245,7 +256,18 @@ if not df_reconstructed.empty:
             ec=style["ec"],
             zorder=14,
         )
-        print(f"Modeled parent water for {age}: d18O = {mean_d18O_water:.1f} ‰, Dp17O = {mean_Dp17O_water:.0f} ppm")
+        print(
+            f"Modeled parent water for {age}: "
+            f"δ18O = {mean_d18O_water:.1f} ‰, "
+            f"Δ’17O = {mean_Dp17O_water:.0f} ppm"
+        )
+
+    print(
+        "Average parent-water reconstruction uncertainty: "
+        f"δ18O = {np.nanmean(parent_water_d18O_uncertainties):.1f} ‰, "
+        f"Δ’17O = {np.nanmean(parent_water_Dp17O_uncertainties):.0f} ppm"
+        "\n"
+    )
 
 for style_key, style in sample_styles.items():
     dat = df_carbonates[df_carbonates[style["group"]] == style_key]
@@ -316,7 +338,7 @@ ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"], color="#55B9E6", linesty
 ax.scatter(prime(df_mix["mix_d18O"].iloc[-1]), df_mix["mix_Dp17O"].iloc[[-1]],
             marker = "*", ec="#55B9E6", fc="w", s=60, zorder=100)
 ax.text(prime(d18O_ice) + 2, Dp17O_ice,
-        "ice- or\nsnowmelt",
+        "snowmelt",
         va="center", ha="left", color="#55B9E6", fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
@@ -385,7 +407,7 @@ save_figure(fig, figures_dir, "glendonites")
 
 # Manuscript parts:
 
-print(f'\nModern glendonites: ∆17O = {df_carbonates[df_carbonates["Age"] == "modern"]["Dp17O_AC"].min():.0f} to {df_carbonates[df_carbonates["Age"] == "modern"]["Dp17O_AC"].max():.0f} ppm and d18O = {df_carbonates[df_carbonates["Age"] == "modern"]["d18O_AC"].min():.1f} to {df_carbonates[df_carbonates["Age"] == "modern"]["d18O_AC"].max():.1f} ‰. Count = {len(df_carbonates[df_carbonates["Age"] == "modern"])}')
-print(f'pre-PETM glendonites: ∆17O = {df_carbonates[df_carbonates["Age"] == "pre-PETM"]["Dp17O_AC"].min():.0f} to {df_carbonates[df_carbonates["Age"] == "pre-PETM"]["Dp17O_AC"].max():.0f} ppm and d18O = {df_carbonates[df_carbonates["Age"] == "pre-PETM"]["d18O_AC"].min():.1f} to {df_carbonates[df_carbonates["Age"] == "pre-PETM"]["d18O_AC"].max():.1f} ‰. Count = {len(df_carbonates[df_carbonates["Age"] == "pre-PETM"])}')
-print(f'PETM glendonites: ∆17O = {df_carbonates[df_carbonates["Age"] == "PETM"]["Dp17O_AC"].min():.0f} to {df_carbonates[df_carbonates["Age"] == "PETM"]["Dp17O_AC"].max():.0f} ppm and d18O = {df_carbonates[df_carbonates["Age"] == "PETM"]["d18O_AC"].min():.1f} to {df_carbonates[df_carbonates["Age"] == "PETM"]["d18O_AC"].max():.1f} ‰. Count = {len(df_carbonates[df_carbonates["Age"] == "PETM"])}')
-print(f'early Eocene glendonites: ∆17O = {df_carbonates[df_carbonates["Age"] == "early Eocene"]["Dp17O_AC"].min():.0f} to {df_carbonates[df_carbonates["Age"] == "early Eocene"]["Dp17O_AC"].max():.0f} ppm and d18O = {df_carbonates[df_carbonates["Age"] == "early Eocene"]["d18O_AC"].min():.1f} to {df_carbonates[df_carbonates["Age"] == "early Eocene"]["d18O_AC"].max():.1f} ‰. Count = {len(df_carbonates[df_carbonates["Age"] == "early Eocene"])}')
+print(f'\nModern glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "modern"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "modern"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "modern"])}')
+print(f'pre-PETM glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "pre-PETM"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "pre-PETM"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "pre-PETM"])}')
+print(f'PETM glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "PETM"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "PETM"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "PETM"])}')
+print(f'early Eocene glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "early Eocene"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "early Eocene"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "early Eocene"])}')
