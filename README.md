@@ -1,4 +1,4 @@
-# Supplementary material for:</br>Seasonal near-freezing temperatures in Nordic region during the early Eocene hothouse
+# Supplementary material for:</br>Seasonal near-freezing temperatures in Nordic region during the early Eocene hothouse</br>by Vickers et al.
 
 ## Graphical abstract
 ![Graphical abstract](figures/png/glendonites.png)
