@@ -1,5 +1,26 @@
-# Import libraries ------------------------------------------------------------
+# The following code is used to:
+# Reconstruct parent-water compositions for Paleogene glendonites
+#
+# INPUT:    combined_replicate_data.csv
+#           modern_seawater.csv
+#           Aron_2021.csv
+#           Pang_2015.csv
+#           Touzeau_2016.csv
+#           Landais_2008_S1.csv
+#           Landais_2008_S2.csv
+#           Steen_Larsen_2014.csv
+#           Landais_2012.csv
+#           Beershaw_2020.csv
+#
+# OUTPUT:   all_data.csv
+#           all_data.xlsx
+#           glendonites.png
+#           glendonites.svg
+
+
+# Import libraries -------------------------------------------------------------
 from matplotlib.ticker import MultipleLocator
+from matplotlib.axes import Axes
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 import pandas as pd
@@ -9,48 +30,52 @@ import matplotlib.colors as mcolors
 from _helper_functions import *
 from _plot_style import *
 from pathlib import Path
-from reconstruct_water_Dp17O import reconstruct_water_Dp17O
-from waters import calculate_water_endmembers
+from reconstruct_water_Dp17O import reconstruct_water_dp17o
+from _water_functions import calculate_water_endmembers
 
-
-# Define directories ----------------------------------------------------------
+# Define directories -----------------------------------------------------------
 sources_dir = Path(__file__).resolve().parent.parent
 figures_dir = sources_dir / "figures"
-export_tables_dir = sources_dir / "export_tables" / "csv"
+export_tables_dir = sources_dir / "data" / "exported" / "csv"
 
-# Get water endmembers ------------------------------------------------------
-d18O_ice_free, Dp17O_ice_free, d18O_ice, Dp17O_ice, d18O_modern_seawater, Dp17O_modern_seawater, d18O_meteoric_water, Dp17O_meteoric_water = calculate_water_endmembers()
+# Get water endmembers ---------------------------------------------------------
+d18o_ice_free, dp17o_ice_free, d18o_ice, dp17o_ice, d18o_modern_seawater, dp17o_modern_seawater, d18o_meteoric_water, dp17o_meteoric_water = calculate_water_endmembers()
 
-
-# Apply plot style ------------------------------------------------------------
+# Apply plot style -------------------------------------------------------------
 apply_plot_style()
 
-
-# Define functions ------------------------------------------------------------
-def plot_calcite_equilibrium(Dp17Ow, d18Ow, Tmin, Tmax, ax, color="k"):
-    d17Ow = d17O(d18Ow, Dp17Ow)
+# Define functions -------------------------------------------------------------
+def plot_calcite_equilibrium(
+    dp17ow: float,
+    d18ow: float,
+    t_min: float,
+    t_max: float,
+    ax: Axes,
+    color: str = "k",
+) -> pd.DataFrame:
+    d17ow = d17o(d18ow, dp17ow)
 
     # Plot the water point
-    ax.scatter(prime(d18Ow), Dp17Ow,
+    ax.scatter(prime(d18ow), dp17ow,
                marker='*', ec=color, fc="w", s=60, zorder=10)
 
     # Plot the equilibrium line
-    equilibrium_temperatures = np.arange(Tmin, 290, 1) + 273.15
-    d18O_mineral = d18O_cc(equilibrium_temperatures, d18Ow)
-    d17O_mineral = d17O_cc(equilibrium_temperatures, d17Ow)
+    equilibrium_temperatures = np.arange(t_min, 290, 1) + 273.15
+    d18o_mineral = d18o_cc(equilibrium_temperatures, d18ow)
+    d17o_mineral = d17o_cc(equilibrium_temperatures, d17ow)
     mineral_equilibrium = np.array(
-        [d18O_mineral, Dp17O(d17O_mineral, d18O_mineral),
+        [d18o_mineral, dp17o(d17o_mineral, d18o_mineral),
          equilibrium_temperatures]
     ).T
     ax.plot(prime(mineral_equilibrium[:, 0]), mineral_equilibrium[:, 1],
             c=color, ls=":", zorder=0)
 
     # Plot the equilibrium line, marking every 5 °C
-    equilibrium_temperatures = np.arange(Tmin, Tmax + 1, 5) + 273.15
-    d18O_mineral = d18O_cc(equilibrium_temperatures, d18Ow)
-    d17O_mineral = d17O_cc(equilibrium_temperatures, d17Ow)
+    equilibrium_temperatures = np.arange(t_min, t_max + 1, 5) + 273.15
+    d18o_mineral = d18o_cc(equilibrium_temperatures, d18ow)
+    d17o_mineral = d17o_cc(equilibrium_temperatures, d17ow)
     mineral_equilibrium = np.array(
-        [d18O_mineral, Dp17O(d17O_mineral, d18O_mineral),
+        [d18o_mineral, dp17o(d17o_mineral, d18o_mineral),
          equilibrium_temperatures]
     ).T
     ax.scatter(prime(mineral_equilibrium[:, 0]), mineral_equilibrium[:, 1],
@@ -64,8 +89,7 @@ def plot_calcite_equilibrium(Dp17Ow, d18Ow, Tmin, Tmax, ax, color="k"):
     )
     return equilibrium_df
 
-
-# Import data -----------------------------------------------------------------
+# Import data ------------------------------------------------------------------
 df_carbonates = pd.read_csv(export_tables_dir / "combined_replicate_data.csv")
 
 # Temperature assignment:
@@ -74,12 +98,12 @@ df_carbonates = pd.read_csv(export_tables_dir / "combined_replicate_data.csv")
 # Where available, sample-specific temperatures derived from Δ47 were used;
 # otherwise, the mean Δ47-derived temperature for the corresponding age group
 # was calculated from the manuscript's clumped isotope supplementary table.
-reconstruction_temperature_by_age_C = {
+reconstruction_temperature_by_age_c = {
     "pre-PETM": 5,
     "PETM": 3,
     "early Eocene": 7,
 }
-reconstruction_temperature_error_by_age_C = {
+reconstruction_temperature_error_by_age_c = {
     "pre-PETM": 3,
     "PETM": 2,
     "early Eocene": 2,
@@ -90,10 +114,10 @@ df_carbonates["reconstructed_water_d18O"] = np.nan
 df_carbonates["reconstructed_water_Dp17O"] = np.nan
 
 df_carbonates["clumped_T"] = df_carbonates["clumped_T"].fillna(
-    df_carbonates["age"].map(reconstruction_temperature_by_age_C)
+    df_carbonates["age"].map(reconstruction_temperature_by_age_c)
 )
 df_carbonates["clumped_T_err"] = df_carbonates["clumped_T_err"].fillna(
-    df_carbonates["age"].map(reconstruction_temperature_error_by_age_C)
+    df_carbonates["age"].map(reconstruction_temperature_error_by_age_c)
 )
 
 missing_temperature_ages = df_carbonates.loc[
@@ -118,13 +142,13 @@ rectangle_columns = [
 ]
 df_carbonates[rectangle_columns] = np.nan
 if non_modern.any():
-    reconstructed = reconstruct_water_Dp17O(
+    reconstructed = reconstruct_water_dp17o(
         df_carbonates.loc[non_modern, "d18O_AC"],
         df_carbonates.loc[non_modern, "Dp17O_AC"],
         df_carbonates.loc[non_modern, "clumped_T"],
-        d18O_error=df_carbonates.loc[non_modern, "d18O_error"],
-        Dp17O_error=df_carbonates.loc[non_modern, "Dp17O_error"],
-        temperature_error_C=df_carbonates.loc[non_modern, "clumped_T_err"],
+        d18o_error=df_carbonates.loc[non_modern, "d18O_error"],
+        dp17o_error=df_carbonates.loc[non_modern, "Dp17O_error"],
+        temperature_error_c=df_carbonates.loc[non_modern, "clumped_T_err"],
     )
     reconstructed_columns = [
         "reconstructed_water_d18O",
@@ -136,12 +160,22 @@ if non_modern.any():
 
 export_table(df_carbonates, "all_data")
 
-# Plotting --------------------------------------------------------------------
+# Create figure ----------------------------------------------------------------
 fig, ax = plt.subplots()
 
-light_blue = "#25AAE1"
-dark_gray = "#231F20"
-light_gray = "#B3B4B4"
+# Setup axes -------------------------------------------------------------------
+ax.set_xlim(-35, 45)
+ax.set_ylim(-127, 52)
+ax.set_ylabel(r"$\Delta\prime^{17}$O (ppm)")
+ax.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW)")
+ax.xaxis.set_minor_locator(MultipleLocator(5))
+ax.yaxis.set_minor_locator(MultipleLocator(10))
+
+# Plot data --------------------------------------------------------------------
+
+light_blue = C["sample_blue"]
+dark_gray = C["sample_dark_gray"]
+light_gray = C["sample_light_gray"]
 
 sample_styles = {
     "pre-PETM": {"fc": light_blue, "ec": light_blue, "group": "age"},
@@ -153,16 +187,15 @@ sample_styles = {
     "Nankai Trough": {"fc": "white", "ec": "black", "group": "site"},
 }
 
-# Plot modern seawater --------------------------------------------------------
-
-ax.text(prime(d18O_modern_seawater)+2, Dp17O_modern_seawater,
+# Plot modern seawater ---------------------------------------------------------
+ax.text(prime(d18o_modern_seawater)+2, dp17o_modern_seawater,
         "modern\nseawater",
-        va="bottom", ha="left", color="#858379", fontsize=6,
+        va="bottom", ha="left", color=C["wgray5"], fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
 # Plot calcite line for modern seawater
 eq = plot_calcite_equilibrium(
-    Dp17O_modern_seawater, d18O_modern_seawater, 0, 10, ax, "#858379")
+    dp17o_modern_seawater, d18o_modern_seawater, 0, 10, ax, C["wgray5"])
 ax.annotate(
     str(round(eq.iloc[0, 2])) + " °C",
     (prime(eq.iloc[0, 0]), eq.iloc[0, 1]),
@@ -178,20 +211,18 @@ ax.annotate(
     # bbox=dict(fc="white", ec="none", pad=1),
     arrowprops=dict(arrowstyle="->", color="k", shrinkA=0))
 
-# Plot ice-free seawater composition ------------------------------------------
-
-ax.scatter(prime(d18O_ice_free), Dp17O_ice_free,
-           marker='*', ec="#1455C0", fc="w", s=60, zorder = 10)
-ax.text(prime(d18O_ice_free) + 2, Dp17O_ice_free,
+# Plot ice-free seawater composition -------------------------------------------
+ax.scatter(prime(d18o_ice_free), dp17o_ice_free,
+           marker='*', ec=C["blue"], fc="w", s=60, zorder = 10)
+ax.text(prime(d18o_ice_free) + 2, dp17o_ice_free,
         "ice-free\nseawater",
-        va="top", ha="left", color="#1455C0", fontsize=6,
+        va="top", ha="left", color=C["blue"], fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
 eq = plot_calcite_equilibrium(
-    Dp17O_ice_free, d18O_ice_free, 0, 10, ax, "#1455C0")
+    dp17o_ice_free, d18o_ice_free, 0, 10, ax, C["blue"])
 
-# Plot modeled fluids -----------------
-
+# Plot modeled fluids ----------------------------------------------------------
 ax.text(-11, -38,
         "reconstructed\nparent waters",
         va="center", ha="right", color="k", fontsize=6,
@@ -238,8 +269,8 @@ if not df_reconstructed.empty:
         ))
 
     age_mean_handles = []
-    parent_water_d18O_uncertainties = []
-    parent_water_Dp17O_uncertainties = []
+    parent_water_d18o_uncertainties = []
+    parent_water_dp17o_uncertainties = []
     for age in order:
         if age == "modern":
             continue
@@ -248,13 +279,13 @@ if not df_reconstructed.empty:
             continue
 
         style = sample_styles[age]
-        mean_d18O_water = age_dat["reconstructed_water_d18O"].mean()
-        mean_Dp17O_water = age_dat["reconstructed_water_Dp17O"].mean()
-        sample_d18O_uncertainties = (
+        mean_d18o_water = age_dat["reconstructed_water_d18O"].mean()
+        mean_dp17o_water = age_dat["reconstructed_water_Dp17O"].mean()
+        sample_d18o_uncertainties = (
             unprime(age_dat["reconstructed_water_d18O_prime_max"])
             - unprime(age_dat["reconstructed_water_d18O_prime_min"])
         ) / 2.0
-        sample_Dp17O_uncertainties = (
+        sample_dp17o_uncertainties = (
             age_dat["reconstructed_water_Dp17O_max"]
             - age_dat["reconstructed_water_Dp17O_min"]
         ) / 2.0
@@ -264,38 +295,38 @@ if not df_reconstructed.empty:
         # group mean and combine them with the standard error derived from the
         # between-sample 1 SD. For a single sample, the latter is undefined and
         # contributes zero additional variance.
-        propagated_d18O_mean_error = (
-            np.sqrt(np.sum(sample_d18O_uncertainties**2)) / sample_count
+        propagated_d18o_mean_error = (
+            np.sqrt(np.sum(sample_d18o_uncertainties**2)) / sample_count
         )
-        propagated_Dp17O_mean_error = (
-            np.sqrt(np.sum(sample_Dp17O_uncertainties**2)) / sample_count
+        propagated_dp17o_mean_error = (
+            np.sqrt(np.sum(sample_dp17o_uncertainties**2)) / sample_count
         )
         if sample_count > 1:
-            d18O_standard_error = (
+            d18o_standard_error = (
                 age_dat["reconstructed_water_d18O"].std(ddof=1)
                 / np.sqrt(sample_count)
             )
-            Dp17O_standard_error = (
+            dp17o_standard_error = (
                 age_dat["reconstructed_water_Dp17O"].std(ddof=1)
                 / np.sqrt(sample_count)
             )
         else:
-            d18O_standard_error = 0.0
-            Dp17O_standard_error = 0.0
+            d18o_standard_error = 0.0
+            dp17o_standard_error = 0.0
 
-        mean_d18O_uncertainty = np.hypot(
-            propagated_d18O_mean_error,
-            d18O_standard_error,
+        mean_d18o_uncertainty = np.hypot(
+            propagated_d18o_mean_error,
+            d18o_standard_error,
         )
-        mean_Dp17O_uncertainty = np.hypot(
-            propagated_Dp17O_mean_error,
-            Dp17O_standard_error,
+        mean_dp17o_uncertainty = np.hypot(
+            propagated_dp17o_mean_error,
+            dp17o_standard_error,
         )
-        parent_water_d18O_uncertainties.append(mean_d18O_uncertainty)
-        parent_water_Dp17O_uncertainties.append(mean_Dp17O_uncertainty)
+        parent_water_d18o_uncertainties.append(mean_d18o_uncertainty)
+        parent_water_dp17o_uncertainties.append(mean_dp17o_uncertainty)
         ax.scatter(
-            prime(mean_d18O_water),
-            mean_Dp17O_water,
+            prime(mean_d18o_water),
+            mean_dp17o_water,
             marker="*",
             s=60,
             fc=style["fc"],
@@ -304,15 +335,15 @@ if not df_reconstructed.empty:
         )
         print(
             f"Modeled parent water for {age}: "
-            f"δ18O = {mean_d18O_water:.1f} ± {mean_d18O_uncertainty:.1f} ‰, "
-            f"Δ’17O = {mean_Dp17O_water:.0f} ± {mean_Dp17O_uncertainty:.0f} ppm "
+            f"δ18O = {mean_d18o_water:.1f} ± {mean_d18o_uncertainty:.1f} ‰, "
+            f"Δ’17O = {mean_dp17o_water:.0f} ± {mean_dp17o_uncertainty:.0f} ppm "
             "(propagated 1 SD)"
         )
 
     print(
         "Average parent-water reconstruction uncertainty: "
-        f"δ18O = {np.nanmean(parent_water_d18O_uncertainties):.1f} ‰, "
-        f"Δ’17O = {np.nanmean(parent_water_Dp17O_uncertainties):.0f} ppm "
+        f"δ18O = {np.nanmean(parent_water_d18o_uncertainties):.1f} ‰, "
+        f"Δ’17O = {np.nanmean(parent_water_dp17o_uncertainties):.0f} ppm "
         "(mean propagated 1 SD)"
         "\n"
     )
@@ -353,21 +384,20 @@ for style_key, style in sample_styles.items():
         zorder=5
     )
 
-# Add meteoric water to the mix -----------------------------------------------
-
-df_mix = mix_d17O(d18O_A=d18O_ice_free, D17O_A=Dp17O_ice_free,
-                  d18O_B=d18O_meteoric_water, D17O_B=Dp17O_meteoric_water)
+# Add meteoric water to the mix ------------------------------------------------
+df_mix = mix_d17o(d18o_a=d18o_ice_free, dp17o_a=dp17o_ice_free,
+                  d18o_b=d18o_meteoric_water, dp17o_b=dp17o_meteoric_water)
 ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"],
-        color="#3CB5AE", ls="-", lw=1.5)
+        color=C["meteoric"], ls="-", lw=1.5)
 ax.scatter(prime(df_mix["mix_d18O"].iloc[-1]), df_mix["mix_Dp17O"].iloc[[-1]],
-            marker = "*", ec="#3CB5AE", fc="w", s=60, zorder=10)
+            marker = "*", ec=C["meteoric"], fc="w", s=60, zorder=10)
 ax.text(prime(df_mix["mix_d18O"].iloc[-1]) + 2, df_mix["mix_Dp17O"].iloc[-1],
         "Eocene\nmeteoric water",
-        va="center", ha="left", color="#3CB5AE", fontsize=6,
+        va="center", ha="left", color=C["meteoric"], fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
-df_mix = mix_d17O(d18O_A=d18O_ice_free, D17O_A=Dp17O_ice_free,
-                  d18O_B=d18O_meteoric_water, D17O_B=Dp17O_meteoric_water, step=10)
+df_mix = mix_d17o(d18o_a=d18o_ice_free, dp17o_a=dp17o_ice_free,
+                  d18o_b=d18o_meteoric_water, dp17o_b=dp17o_meteoric_water, step=10)
 ax.scatter(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"], marker="|", c="k", s=1, zorder = 9)
 ax.annotate("50%",
             (prime(df_mix["mix_d18O"].iloc[5]), df_mix["mix_Dp17O"].iloc[5]),
@@ -377,34 +407,32 @@ ax.annotate("50%",
                     connectionstyle="arc3,rad=-0.2", shrinkA=0),
             )
 
-# Add ice to the mix ----------------------------------------------------------
-
+# Add ice to the mix -----------------------------------------------------------
 # Mixing line between modern seawater and Greenland ice
-df_mix = mix_d17O(d18O_A=d18O_ice_free, D17O_A=Dp17O_ice_free,
-                  d18O_B=d18O_ice, D17O_B=Dp17O_ice)
-ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"], color="#55B9E6", linestyle="-", lw=1.5)
+df_mix = mix_d17o(d18o_a=d18o_ice_free, dp17o_a=dp17o_ice_free,
+                  d18o_b=d18o_ice, dp17o_b=dp17o_ice)
+ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"], color=C["snowmelt"], linestyle="-", lw=1.5)
 ax.scatter(prime(df_mix["mix_d18O"].iloc[-1]), df_mix["mix_Dp17O"].iloc[[-1]],
-            marker = "*", ec="#55B9E6", fc="w", s=60, zorder=100)
-ax.text(prime(d18O_ice) + 2, Dp17O_ice,
+            marker = "*", ec=C["snowmelt"], fc="w", s=60, zorder=100)
+ax.text(prime(d18o_ice) + 2, dp17o_ice,
         "snowmelt",
-        va="center", ha="left", color="#55B9E6", fontsize=6,
+        va="center", ha="left", color=C["snowmelt"], fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
 
 
-
-df_mix_meteoric_ice = mix_d17O(d18O_A=d18O_meteoric_water, D17O_A=Dp17O_meteoric_water,
-                               d18O_B=d18O_ice, D17O_B=Dp17O_ice, step=100)
+df_mix_meteoric_ice = mix_d17o(d18o_a=d18o_meteoric_water, dp17o_a=dp17o_meteoric_water,
+                               d18o_b=d18o_ice, dp17o_b=dp17o_ice, step=100)
 ax.plot(
     prime(df_mix_meteoric_ice["mix_d18O"]),
     df_mix_meteoric_ice["mix_Dp17O"],
-    color="#49B7C8",
+    color=C["mixed_water"],
     linestyle="--",
     lw=1.2,
     zorder=1,
 )
-df_mix_meteoric_ice = mix_d17O(d18O_A=d18O_meteoric_water, D17O_A=Dp17O_meteoric_water,
-                               d18O_B=d18O_ice, D17O_B=Dp17O_ice, step=4)
+df_mix_meteoric_ice = mix_d17o(d18o_a=d18o_meteoric_water, dp17o_a=dp17o_meteoric_water,
+                               d18o_b=d18o_ice, dp17o_b=dp17o_ice, step=4)
 ax.scatter(prime(df_mix_meteoric_ice["mix_d18O"]), df_mix_meteoric_ice["mix_Dp17O"], marker="|", c="k", s=1, zorder = 9)
 ax.annotate("50%",
             (prime(df_mix_meteoric_ice["mix_d18O"].iloc[2]), df_mix_meteoric_ice["mix_Dp17O"].iloc[2]),
@@ -415,40 +443,31 @@ ax.annotate("50%",
             )
 
 
-
 # for every point in df_mix, draw mixing line between the endmember and ice-free ocean
-meteoric_rgb = np.array(mcolors.to_rgb("#3CB5AE"))
-ice_rgb = np.array(mcolors.to_rgb("#55B9E6"))
+meteoric_rgb = np.array(mcolors.to_rgb(C["meteoric"]))
+ice_rgb = np.array(mcolors.to_rgb(C["snowmelt"]))
 
 for i in range(len(df_mix_meteoric_ice)):
     blend_ratio = i / (len(df_mix_meteoric_ice) - 1) if len(df_mix_meteoric_ice) > 1 else 0
     line_color = mcolors.to_hex((1 - blend_ratio) * meteoric_rgb + blend_ratio * ice_rgb)
 
-    mix = mix_d17O(d18O_A=d18O_ice_free, D17O_A=Dp17O_ice_free,
-                  d18O_B=df_mix_meteoric_ice["mix_d18O"].iloc[i], D17O_B=df_mix_meteoric_ice["mix_Dp17O"].iloc[i],
+    mix = mix_d17o(d18o_a=d18o_ice_free, dp17o_a=dp17o_ice_free,
+                  d18o_b=df_mix_meteoric_ice["mix_d18O"].iloc[i], dp17o_b=df_mix_meteoric_ice["mix_Dp17O"].iloc[i],
                   step=50)
     ax.scatter(prime(mix["mix_d18O"]), mix["mix_Dp17O"], fc=line_color, ec ="none", zorder=0, s=1, marker=".")
-    mix = mix_d17O(d18O_A=d18O_ice_free, D17O_A=Dp17O_ice_free,
-                  d18O_B=df_mix_meteoric_ice["mix_d18O"].iloc[i], D17O_B=df_mix_meteoric_ice["mix_Dp17O"].iloc[i],
+    mix = mix_d17o(d18o_a=d18o_ice_free, dp17o_a=dp17o_ice_free,
+                  d18o_b=df_mix_meteoric_ice["mix_d18O"].iloc[i], dp17o_b=df_mix_meteoric_ice["mix_Dp17O"].iloc[i],
                   step=10)
     ax.scatter(prime(mix["mix_d18O"]), mix["mix_Dp17O"], marker="|", c="k", s=1, zorder = 9)
 
-
-# Axis and legend settings ----------------------------------------------------
+# Add legend -------------------------------------------------------------------
 legend = ax.legend(handles=legend_handles, loc='lower left',
                    fancybox=False, markerscale=0.9,
                    framealpha=1, fontsize=6, edgecolor="k", facecolor="none")
 for text in legend.get_texts():
     if text.get_text() in legend_sections.values():
         text.set_weight("bold")
-ax.set_xlim(-35, 45)
-ax.set_ylim(-127, 52)
-ax.set_ylabel(r"$\Delta\prime^{17}$O (ppm)")
-ax.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW)")
 
-# set minor ticks
-ax.xaxis.set_minor_locator(MultipleLocator(5))
-ax.yaxis.set_minor_locator(MultipleLocator(10))
 
 # Save figure
 save_figure(fig, figures_dir, "glendonites")

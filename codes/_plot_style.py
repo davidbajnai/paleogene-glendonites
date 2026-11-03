@@ -1,6 +1,5 @@
-import os
-
 import matplotlib.pyplot as plt
+import numpy as np
 from pathlib import Path
 from PIL import Image
 import copy
@@ -23,6 +22,15 @@ STYLE = {
 }
 
 C = {
+    "error_gray": "#cacaca",
+    "sample_blue": "#25AAE1",
+    "sample_dark_gray": "#231F20",
+    "sample_light_gray": "#B3B4B4",
+    "antarctic": "#004B6D",
+    "greenland": "#309FD1",
+    "meteoric": "#3CB5AE",
+    "snowmelt": "#55B9E6",
+    "mixed_water": "#49B7C8",
     "figure_bg": "#FFFFFF",
     "axes_bg": "#FFFFFF",
 
@@ -78,6 +86,11 @@ C = {
     "cgray8": "#131821",
 
 }
+
+
+def categorical_colors(count: int) -> np.ndarray:
+    """Return the existing categorical colors used for replicate diagnostics."""
+    return plt.cm.tab20(np.linspace(0, 1, count))
 
 
 def apply_plot_style():
@@ -313,7 +326,7 @@ def combine_images(output_figure_name, input_figure_title, remove_originals=Fals
         print(f"Deleting original subplot files:\n{delete_paths_text}")
         for path in delete_paths:
             try:
-                os.remove(path)
+                path.unlink()
             except Exception as e:
                 print(f"Warning: Failed to delete {path}: {e}")
 

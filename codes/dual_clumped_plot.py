@@ -1,45 +1,51 @@
-# Import libraries ------------------------------------------------------------
+# The following code is used to:
+# Compare dual clumped isotope measurements with equilibrium values
+#
+# INPUT:    dual_clumped_data.csv
+#
+# OUTPUT:   dual_clumped_plot.png
+#           dual_clumped_plot.svg
+
+
+# Import libraries -------------------------------------------------------------
 from matplotlib.ticker import MultipleLocator
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 import pandas as pd
 import numpy as np
+from numpy.typing import ArrayLike
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from _helper_functions import *
 from _plot_style import *
 from pathlib import Path
 
-
-# Define directories ----------------------------------------------------------
+# Define directories -----------------------------------------------------------
 figures_dir = Path(__file__).resolve().parent.parent / "figures"
-source_data_dir = Path(__file__).resolve().parent.parent / "source_data"
+source_data_dir = Path(__file__).resolve().parent.parent / "data" / "input"
 
-
-# Apply plot style ------------------------------------------------------------
+# Apply plot style -------------------------------------------------------------
 apply_plot_style()
 plt.rcParams["figure.figsize"] = (3.5, 3.5)
 
-# Load data -------------------------------------------------------------------
+# Load data --------------------------------------------------------------------
 data = pd.read_csv(source_data_dir / "dual_clumped_data.csv")
 
+# Define functions -------------------------------------------------------------
+def fiebig_2024(t_in_c: ArrayLike) -> tuple[ArrayLike, ArrayLike]:
+    t = t_in_c + 273.15
+    d63 = -5.897 * 1/t + -3.521 * 10**3 / t**2 + \
+        2.391 * 10**7 / t**3 - 3.541 * 10**9 / t**4
+    d64 = 6.002 * 1/t - 1.299 * 10**4 / t**2 + \
+        8.996 * 10**6 / t**3 - 7.423 * 10**8 / t**4
+    d47 = 1.038* d63 + 0.1848
+    d48 = 1.038* d64 + 0.1214
+    return d47, d48
 
-# Define functions ------------------------------------------------------------
-def Fiebig_2024(T_in_C):
-    T = T_in_C + 273.15
-    D63 = -5.897 * 1/T + -3.521 * 10**3 / T**2 + \
-        2.391 * 10**7 / T**3 - 3.541 * 10**9 / T**4
-    D64 = 6.002 * 1/T - 1.299 * 10**4 / T**2 + \
-        8.996 * 10**6 / T**3 - 7.423 * 10**8 / T**4
-    D47 = 1.038* D63 + 0.1848
-    D48 = 1.038* D64 + 0.1214
-    return D47, D48
-
-# Define colors ---------------------------------------------------------------
-
-light_blue = "#25AAE1"
-dark_gray = "#231F20"
-light_gray = "#B3B4B4"
+# Define colors ----------------------------------------------------------------
+light_blue = C["sample_blue"]
+dark_gray = C["sample_dark_gray"]
+light_gray = C["sample_light_gray"]
 
 sample_styles = {
     "1567C": {"fc": light_blue, "ec": light_blue, "group": "Age"},
@@ -57,29 +63,37 @@ legend_sections = {
 }
 current_legend_section = None
 
-# Create figure and axes ------------------------------------------------------
+# Create figure ----------------------------------------------------------------
 fig, ax = plt.subplots()
 
-# Plot equilibrium line
-Tmin = 0
-Tmax = 15
-T_range = np.linspace(Tmin, Tmax, 1000)
-D47_eq, D48_eq = Fiebig_2024(T_range)
-ax.plot(D48_eq, D47_eq, color="black", ls=":", lw=0.5)
+# Setup axes -------------------------------------------------------------------
+ax.set_xlabel(r"$\Delta_{48}$ (‰ CDES90)")
+ax.set_ylabel(r"$\Delta_{47}$ (‰ CDES90)")
+ax.set_ylim(0.617, 0.673)
+ax.set_xlim(0.235, 0.305)
 
-T_markers = np.arange(Tmin, Tmax + 1, 5)
-D47_markers, D48_markers = Fiebig_2024(T_markers)
+# Plot data --------------------------------------------------------------------
+
+# Plot equilibrium line
+t_min = 0
+t_max = 15
+t_range = np.linspace(t_min, t_max, 1000)
+d47_eq, d48_eq = fiebig_2024(t_range)
+ax.plot(d48_eq, d47_eq, color="black", ls=":", lw=0.5)
+
+t_markers = np.arange(t_min, t_max + 1, 5)
+d47_markers, d48_markers = fiebig_2024(t_markers)
 ax.scatter(
-    D48_markers,
-    D47_markers,
+    d48_markers,
+    d47_markers,
     marker=".",
     facecolors="none",
     edgecolors="black",
 )
-for T, D47, D48 in zip(T_markers, D47_markers, D48_markers):
+for t, d47, d48 in zip(t_markers, d47_markers, d48_markers):
     ax.annotate(
-        f"{T}°C",
-        xy=(D48, D47),
+        f"{t}°C",
+        xy=(d48, d47),
         xytext=(2, 0),
         textcoords="offset points",
         fontsize=6,
@@ -134,12 +148,8 @@ for sample_name, style in sample_styles.items():
         )
     )
 
-ax.set_xlabel(r"$\Delta_{48}$ (‰ CDES90)")
-ax.set_ylabel(r"$\Delta_{47}$ (‰ CDES90)")
 
-ax.set_ylim(0.617, 0.673)
-ax.set_xlim(0.235, 0.305)
-
+# Add legend -------------------------------------------------------------------
 legend = ax.legend(handles=legend_handles, loc="lower right",
                    fancybox=False, markerscale=1,
                    fontsize=6, edgecolor="k", facecolor="none",

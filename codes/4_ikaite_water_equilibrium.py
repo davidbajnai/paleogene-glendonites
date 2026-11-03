@@ -1,32 +1,40 @@
-# Import libraries ------------------------------------------------------------
+# The following code is used to:
+# Evaluate isotope fractionation between modern ikaite and seawater
+#
+# INPUT:    combined_replicate_data.csv
+#           Breitkreuz_et_al_2018.nc
+#
+# OUTPUT:   modern_data_with_sw_values.csv
+#           ikaite_water_equilibrium.png
+#           ikaite_water_equilibrium.svg
+
+
+# Import libraries -------------------------------------------------------------
 from pathlib import Path
 import matplotlib.pyplot as plt
 import netCDF4 as nc
 import numpy as np
+from numpy.typing import ArrayLike
 import pandas as pd
 from _helper_functions import *
 from _plot_style import *
 
-
-# Define directories ----------------------------------------------------------
+# Define directories -----------------------------------------------------------
 sources_dir = Path(__file__).resolve().parent.parent
-source_data_dir = sources_dir / "source_data"
-export_tables_dir = sources_dir / "export_tables" / "csv"
+literature_data_dir = sources_dir / "data" / "literature"
+export_tables_dir = sources_dir / "data" / "exported" / "csv"
 figures_dir = sources_dir / "figures"
 
-
-# Apply plot style ------------------------------------------------------------
+# Apply plot style -------------------------------------------------------------
 apply_plot_style()
 plt.rcParams["figure.figsize"] = (6.5, 3.5)
 
-
-# Additional functions --------------------------------------------------------
-
+# Additional functions ---------------------------------------------------------
 def retrieve_seawater_parameters(samples, model_path):
     """Retrieve monthly mean seawater d18O and temperature by site and depth."""
 
-    d18O_SW_MODEL_SIGMA = 0.2
-    TEMPERATURE_MODEL_SIGMA = 0.5
+    d18o_sw_model_sigma = 0.2
+    temperature_model_sigma = 0.5
 
     with nc.Dataset(model_path) as dataset:
         latitudes = np.asarray(dataset["lat_1deg_center"][:])
@@ -40,7 +48,7 @@ def retrieve_seawater_parameters(samples, model_path):
                 np.asarray(dataset["depth_center"][:]),
             )
         )
-        d18O = np.ma.concatenate(
+        d18o = np.ma.concatenate(
             (
                 dataset["D18O_1deg"][:, :1, :, :],
                 dataset["D18O_1deg"][:, :, :, :],
@@ -82,7 +90,7 @@ def retrieve_seawater_parameters(samples, model_path):
             np.searchsorted(depths, sample.water_depth, side="left"),
             len(depths) - 1,
         )
-        squared_distance[~np.isfinite(d18O[0, depth_index, :, :])] = np.inf
+        squared_distance[~np.isfinite(d18o[0, depth_index, :, :])] = np.inf
         if not np.isfinite(squared_distance).any():
             raise ValueError(
                 f"No valid seawater d18O grid cell found for {sample.SampleName}."
@@ -91,14 +99,14 @@ def retrieve_seawater_parameters(samples, model_path):
             np.argmin(squared_distance), squared_distance.shape
         )
 
-        monthly_d18O_values = []
+        monthly_d18o_values = []
         monthly_temperature_values = []
         interpolation_depths = []
-        for monthly_d18O_profile, monthly_temperature_profile in zip(
-            d18O[:, :, lat_index, lon_index],
+        for monthly_d18o_profile, monthly_temperature_profile in zip(
+            d18o[:, :, lat_index, lon_index],
             temperature[:, :, lat_index, lon_index],
         ):
-            valid = np.isfinite(monthly_d18O_profile) & np.isfinite(
+            valid = np.isfinite(monthly_d18o_profile) & np.isfinite(
                 monthly_temperature_profile
             )
             if not valid.any():
@@ -108,11 +116,11 @@ def retrieve_seawater_parameters(samples, model_path):
             interpolation_depth = np.clip(
                 sample.water_depth, valid_depths[0], valid_depths[-1]
             )
-            monthly_d18O_values.append(
+            monthly_d18o_values.append(
                 np.interp(
                     interpolation_depth,
                     valid_depths,
-                    monthly_d18O_profile[valid],
+                    monthly_d18o_profile[valid],
                 )
             )
             monthly_temperature_values.append(
@@ -124,17 +132,17 @@ def retrieve_seawater_parameters(samples, model_path):
             )
             interpolation_depths.append(interpolation_depth)
 
-        if not monthly_d18O_values:
+        if not monthly_d18o_values:
             raise ValueError(
                 "No valid monthly seawater d18O and temperature values found for "
                 f"{sample.SampleName}."
             )
 
-        monthly_d18O_values = np.asarray(monthly_d18O_values)
+        monthly_d18o_values = np.asarray(monthly_d18o_values)
         monthly_temperature_values = np.asarray(monthly_temperature_values)
-        monthly_d18O_sigma = (
-            monthly_d18O_values.std(ddof=1)
-            if len(monthly_d18O_values) > 1
+        monthly_d18o_sigma = (
+            monthly_d18o_values.std(ddof=1)
+            if len(monthly_d18o_values) > 1
             else 0.0
         )
         monthly_temperature_sigma = (
@@ -152,13 +160,13 @@ def retrieve_seawater_parameters(samples, model_path):
         retrieved.append(
             {
                 "SampleName": sample.SampleName,
-                "water_d18O": round(monthly_d18O_values.mean(), 3),
+                "water_d18O": round(monthly_d18o_values.mean(), 3),
                 "water_d18O_error": round(
-                    np.hypot(d18O_SW_MODEL_SIGMA, monthly_d18O_sigma), 3
+                    np.hypot(d18o_sw_model_sigma, monthly_d18o_sigma), 3
                 ),
                 "water_temperature": monthly_temperature_values.mean(),
                 "water_temperature_error": np.hypot(
-                    TEMPERATURE_MODEL_SIGMA,
+                    temperature_model_sigma,
                     monthly_temperature_sigma,
                 ),
             }
@@ -181,48 +189,53 @@ def calculate_fractionation_factor(
     return alpha, alpha_error
 
 
-def calculate_d17O_error(d18O_value, Dp17O_value, d18O_error, Dp17O_error):
+def calculate_d17o_error(
+    d18o_value: ArrayLike,
+    dp17o_value: ArrayLike,
+    d18o_error: ArrayLike,
+    dp17o_error: ArrayLike,
+) -> ArrayLike:
     """Propagate independent d18O and Dp17O errors through d17O()."""
-    d18O_contribution = (
-        d17O(d18O_value + d18O_error, Dp17O_value)
-        - d17O(d18O_value - d18O_error, Dp17O_value)
+    d18o_contribution = (
+        d17o(d18o_value + d18o_error, dp17o_value)
+        - d17o(d18o_value - d18o_error, dp17o_value)
     ) / 2.0
-    Dp17O_contribution = (
-        d17O(d18O_value, Dp17O_value + Dp17O_error)
-        - d17O(d18O_value, Dp17O_value - Dp17O_error)
+    dp17o_contribution = (
+        d17o(d18o_value, dp17o_value + dp17o_error)
+        - d17o(d18o_value, dp17o_value - dp17o_error)
     ) / 2.0
-    return np.hypot(d18O_contribution, Dp17O_contribution)
+    return np.hypot(d18o_contribution, dp17o_contribution)
 
 
 def calculate_theta_from_inputs(
-    carbonate_d18O,
-    carbonate_Dp17O,
-    water_d18O,
-    water_Dp17O,
-    carbonate_d17O_offset,
-):
+    carbonate_d18o: ArrayLike,
+    carbonate_dp17o: ArrayLike,
+    water_d18o: ArrayLike,
+    water_dp17o: ArrayLike,
+    carbonate_d17o_offset: ArrayLike,
+) -> ArrayLike:
     """Calculate theta while retaining the shared d18O dependence."""
-    carbonate_d17O = (
-        d17O(carbonate_d18O, carbonate_Dp17O) + carbonate_d17O_offset
+    carbonate_d17o = (
+        d17o(carbonate_d18o, carbonate_dp17o) + carbonate_d17o_offset
     )
-    water_d17O = d17O(water_d18O, water_Dp17O)
-    alpha18 = (1000.0 + carbonate_d18O) / (1000.0 + water_d18O)
-    alpha17 = (1000.0 + carbonate_d17O) / (1000.0 + water_d17O)
+    water_d17o = d17o(water_d18o, water_dp17o)
+    alpha18 = (1000.0 + carbonate_d18o) / (1000.0 + water_d18o)
+    alpha17 = (1000.0 + carbonate_d17o) / (1000.0 + water_d17o)
     return np.log(alpha17) / np.log(alpha18)
 
 
-def a18_KO97(T):
+def a18_ko97(t: ArrayLike) -> ArrayLike:
     # Kim et O'Neil (1997) - calcite
-    return np.exp((18.04 * 1000 / T - 32.18) / 1000)
+    return np.exp((18.04 * 1000 / t - 32.18) / 1000)
 
-def a18_Daeron2019(T):
+def a18_daeron2019(t: ArrayLike) -> ArrayLike:
     # Daeron et al. (2019) - calcite
-    return np.exp((17.57 * 1000 / T - 29.13) / 1000)
+    return np.exp((17.57 * 1000 / t - 29.13) / 1000)
 
 
-def theta_GZ19_cc(T):
+def theta_gz19_cc(t: ArrayLike) -> ArrayLike:
     # Guo and Zhou (2019) - calcite
-    return 59.1047/T**2 + -1.4089/T + 0.5297
+    return 59.1047/t**2 + -1.4089/t + 0.5297
 
 
 # def theta_W20(T):
@@ -240,26 +253,24 @@ def theta_GZ19_cc(T):
 #     return 78.1173/T**2 + -1.5152/T + 0.5299
 
 
-def theta_H18(T):
+def theta_h18(t: ArrayLike) -> ArrayLike:
 
     # Hayles et al. (2018) - calcite
-    K_calcite = 1.019124E+09 / T**5 + -2.117501E+07 / T**4 + 1.686453E+05 / T**3 + -5.784679E+02 / T**2 + 1.489666E-01 / T + 0.5304852
-    B_calcite = 7.027321E+14 / T**7 + -1.633009E+13 / T**6 + 1.463936E+11 / T**5 + -5.417531E+08 / T**4 + -4.495755E+05 / T**3  + 1.307870E+04 / T**2 + -5.393675E-01 / T + 1.331245E-04
-    K_water = 7.625734E+06 / T**5 + 1.216102E+06 / T**4 + -2.135774E+04 / T**3 + 1.323782E+02 / T**2 + -4.931630E-01 / T + 0.5306551
-    B_water = -6.705843E+15 / T**7 + 1.333519E+14 / T**6 + -1.114055E+12 / T**5 + 5.090782E+09 / T**4 + -1.353889E+07 / T**3 + 2.143196E+04 / T**2 + 5.689300 / T + -7.839005E-03
-    a18 = np.exp(B_calcite) / np.exp(B_water)
-    return K_calcite + (K_calcite-K_water) * (B_water / np.log(a18))
+    k_calcite = 1.019124E+09 / t**5 + -2.117501E+07 / t**4 + 1.686453E+05 / t**3 + -5.784679E+02 / t**2 + 1.489666E-01 / t + 0.5304852
+    b_calcite = 7.027321E+14 / t**7 + -1.633009E+13 / t**6 + 1.463936E+11 / t**5 + -5.417531E+08 / t**4 + -4.495755E+05 / t**3  + 1.307870E+04 / t**2 + -5.393675E-01 / t + 1.331245E-04
+    k_water = 7.625734E+06 / t**5 + 1.216102E+06 / t**4 + -2.135774E+04 / t**3 + 1.323782E+02 / t**2 + -4.931630E-01 / t + 0.5306551
+    b_water = -6.705843E+15 / t**7 + 1.333519E+14 / t**6 + -1.114055E+12 / t**5 + 5.090782E+09 / t**4 + -1.353889E+07 / t**3 + 2.143196E+04 / t**2 + 5.689300 / t + -7.839005E-03
+    a18 = np.exp(b_calcite) / np.exp(b_water)
+    return k_calcite + (k_calcite-k_water) * (b_water / np.log(a18))
 
-
-# Get modern data -------------------------------------------------------------
+# Get modern data --------------------------------------------------------------
 data = pd.read_csv(export_tables_dir / "combined_replicate_data.csv")
 data = data[data["age"] == "modern"].copy()
 
-
-# Retrieve seawater isotope values -------------------------------------------
+# Retrieve seawater isotope values ---------------------------------------------
 model_values = retrieve_seawater_parameters(
     data,
-    source_data_dir / "Breitkreuz_et_al_2018.nc",
+    literature_data_dir / "Breitkreuz_et_al_2018.nc",
 )
 data = data.merge(model_values, on="SampleName", validate="one_to_one")
 
@@ -267,39 +278,38 @@ data = data.merge(model_values, on="SampleName", validate="one_to_one")
 data["water_Dp17O"] = -5.0
 data["water_Dp17O_error"] = 1.0
 
-
-# Calculate clumped-based water d18O for comparison --------------------------
-temperature_K = data["clumped_T"] + 273.15
-temperature_K_error = data["clumped_T_err"]
-daeron_alpha18 = a18_Daeron2019(temperature_K)
+# Calculate clumped-based water d18O for comparison ----------------------------
+temperature_k = data["clumped_T"] + 273.15
+temperature_k_error = data["clumped_T_err"]
+daeron_alpha18 = a18_daeron2019(temperature_k)
 data["clumped_water_d18O"] = (
     (1000.0 + data["d18O_AC"]) / daeron_alpha18 - 1000.0
 )
 
-clumped_water_d18O_temperature_plus = (
+clumped_water_d18o_temperature_plus = (
     (1000.0 + data["d18O_AC"])
-    / a18_Daeron2019(temperature_K + temperature_K_error)
+    / a18_daeron2019(temperature_k + temperature_k_error)
     - 1000.0
 )
-clumped_water_d18O_temperature_minus = (
+clumped_water_d18o_temperature_minus = (
     (1000.0 + data["d18O_AC"])
-    / a18_Daeron2019(temperature_K - temperature_K_error)
+    / a18_daeron2019(temperature_k - temperature_k_error)
     - 1000.0
 )
 data["clumped_water_d18O_error"] = np.hypot(
     data["d18O_error"] / daeron_alpha18,
     (
-        clumped_water_d18O_temperature_plus
-        - clumped_water_d18O_temperature_minus
+        clumped_water_d18o_temperature_plus
+        - clumped_water_d18o_temperature_minus
     )
     / 2.0,
 )
 
-# Calculate ikaite-water fractionation factors using database seawater d18O --
-data["water_d17O"] = d17O(data["water_d18O"], data["water_Dp17O"])
+# Calculate ikaite-water fractionation factors using database seawater d18O ----
+data["water_d17O"] = d17o(data["water_d18O"], data["water_Dp17O"])
 
 # Propagate water d18O and Dp17O errors through the d17O calculation.
-data["water_d17O_error"] = calculate_d17O_error(
+data["water_d17O_error"] = calculate_d17o_error(
     data["water_d18O"],
     data["water_Dp17O"],
     data["water_d18O_error"],
@@ -308,7 +318,7 @@ data["water_d17O_error"] = calculate_d17O_error(
 
 # Calculate carbonate d17O error from d18O and Dp17O, retaining their
 # correlation instead of using the independently reported d17O error.
-data["d17O_AC_error_propagated"] = calculate_d17O_error(
+data["d17O_AC_error_propagated"] = calculate_d17o_error(
     data["d18O_AC"],
     data["Dp17O_AC"],
     data["d18O_error"],
@@ -328,7 +338,7 @@ data["17O_alpha"], data["17O_alpha_error"] = calculate_fractionation_factor(
     data["water_d17O_error"],
 )
 
-# Calculate temperature variables and theta ----------------------------------
+# Calculate temperature variables and theta ------------------------------------
 data["1000_over_T"] = 1000.0 / (data["clumped_T"] + 273.15)
 data["1000_over_T_error"] = (
     1000.0
@@ -339,20 +349,20 @@ data["theta"] = np.log(data["17O_alpha"]) / np.log(data["18O_alpha"])
 
 # Propagate theta directly from the independent carbonate and water d18O and
 # Dp17O inputs. This retains the correlated d18O contribution to both alphas.
-carbonate_d17O_offset = data["d17O_AC"] - d17O(
+carbonate_d17o_offset = data["d17O_AC"] - d17o(
     data["d18O_AC"], data["Dp17O_AC"]
 )
 theta_inputs = {
-    "carbonate_d18O": data["d18O_AC"],
-    "carbonate_Dp17O": data["Dp17O_AC"],
-    "water_d18O": data["water_d18O"],
-    "water_Dp17O": data["water_Dp17O"],
+    "carbonate_d18o": data["d18O_AC"],
+    "carbonate_dp17o": data["Dp17O_AC"],
+    "water_d18o": data["water_d18O"],
+    "water_dp17o": data["water_Dp17O"],
 }
 theta_input_errors = {
-    "carbonate_d18O": data["d18O_error"],
-    "carbonate_Dp17O": data["Dp17O_error"],
-    "water_d18O": data["water_d18O_error"],
-    "water_Dp17O": data["water_Dp17O_error"],
+    "carbonate_d18o": data["d18O_error"],
+    "carbonate_dp17o": data["Dp17O_error"],
+    "water_d18o": data["water_d18O_error"],
+    "water_dp17o": data["water_Dp17O_error"],
 }
 theta_variance = np.zeros(len(data))
 for input_name, input_error in theta_input_errors.items():
@@ -362,11 +372,11 @@ for input_name, input_error in theta_input_errors.items():
     inputs_minus[input_name] = theta_inputs[input_name] - input_error
     theta_plus = calculate_theta_from_inputs(
         **inputs_plus,
-        carbonate_d17O_offset=carbonate_d17O_offset,
+        carbonate_d17o_offset=carbonate_d17o_offset,
     )
     theta_minus = calculate_theta_from_inputs(
         **inputs_minus,
-        carbonate_d17O_offset=carbonate_d17O_offset,
+        carbonate_d17o_offset=carbonate_d17o_offset,
     )
     theta_contribution = (theta_plus - theta_minus) / 2.0
     theta_variance += np.asarray(theta_contribution) ** 2
@@ -478,19 +488,42 @@ print(a18_mathml,"\n")
 # save to csv
 data.to_csv(export_tables_dir / "modern_data_with_sw_values.csv", index=False)
 
-
-# Plot ikaite-water fractionation --------------------------------------------
+# Plot ikaite-water fractionation ----------------------------------------------
 def inverse_temperature_to_celsius(inverse_temperature):
     """Convert 1000/T in K^-1 to temperature in degrees Celsius."""
     return 1000.0 / np.asarray(inverse_temperature) - 273.15
 
 
-def celsius_to_inverse_temperature(temperature_C):
+def celsius_to_inverse_temperature(temperature_c: ArrayLike) -> ArrayLike:
     """Convert temperature in degrees Celsius to 1000/T in K^-1."""
-    return 1000.0 / (np.asarray(temperature_C) + 273.15)
+    return 1000.0 / (np.asarray(temperature_c) + 273.15)
 
 
+# Create figure ----------------------------------------------------------------
 fig, (ax1, ax2) = plt.subplots(1, 2, sharex=True)
+
+# Setup axes -------------------------------------------------------------------
+x_min = (data["1000_over_T"] - data["1000_over_T_error"]).min()
+x_max = (data["1000_over_T"] + data["1000_over_T_error"]).max()
+x_padding = 0.05 * (x_max - x_min)
+xlim = (x_min - x_padding, x_max + x_padding)
+ax1.set_xlim(xlim)
+ax2.set_xlim(xlim)
+
+for ax in (ax1, ax2):
+    temperature_axis = ax.secondary_xaxis(
+        "top",
+        functions=(
+            inverse_temperature_to_celsius,
+            celsius_to_inverse_temperature,
+        ),
+    )
+    temperature_axis.set_xlabel("Temperature (°C)")
+
+ax1.set_xlabel(r"Temperature ($10^{3}\,K^{-1}$)")
+ax1.set_ylabel(r"$10^{3}\,\ln\,{}^{18}\alpha_{\mathrm{ikaite \backslash water}}$")
+ax2.set_xlabel(r"Temperature ($10^{3}\,K^{-1}$)")
+ax2.set_ylabel(r"$\theta_{\mathrm{ikaite \backslash water}}$")
 
 for ax in fig.get_axes():
     i = fig.get_axes().index(ax)
@@ -498,8 +531,8 @@ for ax in fig.get_axes():
             size=12, weight="bold", ha="left", va="top",
             transform=ax.transAxes)
 
-dark_gray = "#231F20"
-light_gray = "#B3B4B4"
+dark_gray = C["sample_dark_gray"]
+light_gray = C["sample_light_gray"]
 sample_styles = {
     "Congo fan": {"fc": dark_gray, "ec": dark_gray},
     "South Georgia": {"fc": light_gray, "ec": dark_gray},
@@ -507,6 +540,7 @@ sample_styles = {
     "Nankai Trough": {"fc": "white", "ec": "black"},
 }
 
+# Plot data --------------------------------------------------------------------
 for _, sample in data.iterrows():
     style = sample_styles[sample["site"]]
 
@@ -555,64 +589,47 @@ for _, sample in data.iterrows():
 
 site_handles, site_labels = ax1.get_legend_handles_labels()
 
-x_min = (data["1000_over_T"] - data["1000_over_T_error"]).min()
-x_max = (data["1000_over_T"] + data["1000_over_T_error"]).max()
-x_padding = 0.05 * (x_max - x_min)
-xlim = (x_min - x_padding, x_max + x_padding)
-ax1.set_xlim(xlim)
-ax2.set_xlim(xlim)
-
-for ax in (ax1, ax2):
-    temperature_axis = ax.secondary_xaxis(
-        "top",
-        functions=(
-            inverse_temperature_to_celsius,
-            celsius_to_inverse_temperature,
-        ),
-    )
-    temperature_axis.set_xlabel("Temperature (°C)")
-
 # Plot published fractionation relationships over the measured temperature
 # range, with a small extension beyond the outermost data points.
-model_1000_over_T = np.linspace(
+model_1000_over_t = np.linspace(
     xlim[0] - 0.005,
     xlim[1] + 0.005,
     200,
 )
-model_temperature_K = 1000.0 / model_1000_over_T
+model_temperature_k = 1000.0 / model_1000_over_t
 
 # Extend the theta models to the infinite-temperature limit at 1000/T = 0.
-theta_model_1000_over_T = np.linspace(
+theta_model_1000_over_t = np.linspace(
     xlim[0],
     xlim[1] + 0.005,
     500,
 )
-theta_model_temperature_K = np.divide(
+theta_model_temperature_k = np.divide(
     1000.0,
-    theta_model_1000_over_T,
-    out=np.full_like(theta_model_1000_over_T, np.inf),
-    where=theta_model_1000_over_T != 0,
+    theta_model_1000_over_t,
+    out=np.full_like(theta_model_1000_over_t, np.inf),
+    where=theta_model_1000_over_t != 0,
 )
 
-line_a18_KO97, = ax1.plot(
-    model_1000_over_T,
-    1000.0 * np.log(a18_KO97(model_temperature_K)),
+line_a18_ko97, = ax1.plot(
+    model_1000_over_t,
+    1000.0 * np.log(a18_ko97(model_temperature_k)),
     color=C["red"],
     ls = ":",
     label="Kim and O'Neil (1997)",
     zorder=-1,
 )
-line_a18_Daeron2019, = ax1.plot(
-    model_1000_over_T,
-    1000.0 * np.log(a18_Daeron2019(model_temperature_K)),
+line_a18_daeron2019, = ax1.plot(
+    model_1000_over_t,
+    1000.0 * np.log(a18_daeron2019(model_temperature_k)),
     color=C["blue"],
     ls="--",
     label="Daëron et al. (2019)",
     zorder=-1,
 )
 line_a18_ikaite_water, = ax1.plot(
-    model_1000_over_T,
-    a18_ikaite_water_slope * 1000.0 / model_temperature_K
+    model_1000_over_t,
+    a18_ikaite_water_slope * 1000.0 / model_temperature_k
     + a18_ikaite_water_intercept,
     color=C["black"],
     ls="-",
@@ -621,14 +638,14 @@ line_a18_ikaite_water, = ax1.plot(
     zorder=-1,
 )
 ax1.fill_between(
-    model_1000_over_T,
+    model_1000_over_t,
     (
-        a18_ikaite_water_slope * 1000.0 / model_temperature_K
+        a18_ikaite_water_slope * 1000.0 / model_temperature_k
         + a18_ikaite_water_intercept
         - a18_ikaite_water_intercept_error
     ),
     (
-        a18_ikaite_water_slope * 1000.0 / model_temperature_K
+        a18_ikaite_water_slope * 1000.0 / model_temperature_k
         + a18_ikaite_water_intercept
         + a18_ikaite_water_intercept_error
     ),
@@ -640,8 +657,8 @@ ax1.fill_between(
 
 # Annotate the offset between Daeron et al. (2019) and this study at 1000/T = 3.66.
 difference_x = 3.62
-difference_temperature_K = 1000.0 / difference_x
-difference_daeron = 1000.0 * np.log(a18_Daeron2019(difference_temperature_K))
+difference_temperature_k = 1000.0 / difference_x
+difference_daeron = 1000.0 * np.log(a18_daeron2019(difference_temperature_k))
 difference_this_study = (
     a18_ikaite_water_slope * difference_x + a18_ikaite_water_intercept
 )
@@ -663,25 +680,25 @@ ax1.text(
     fontsize=6,
 )
 
-line_theta_H18, = ax2.plot(
-    theta_model_1000_over_T,
-    theta_H18(theta_model_temperature_K),
+line_theta_h18, = ax2.plot(
+    theta_model_1000_over_t,
+    theta_h18(theta_model_temperature_k),
     color=C["red"],
     ls="--",
     label="Hayles et al. (2018)",
     zorder=-1,
 )
-line_theta_GZ19, = ax2.plot(
-    theta_model_1000_over_T,
-    theta_GZ19_cc(theta_model_temperature_K),
+line_theta_gz19, = ax2.plot(
+    theta_model_1000_over_t,
+    theta_gz19_cc(theta_model_temperature_k),
     color=C["yellow6"],
     ls="-.",
     label="Guo & Zhou (2019)",
     zorder=-1,
 )
 line_theta_ikaite_water, = ax2.plot(
-    theta_model_1000_over_T,
-    theta_ikaite_water_slope / theta_model_temperature_K + theta_intercept,
+    theta_model_1000_over_t,
+    theta_ikaite_water_slope / theta_model_temperature_k + theta_intercept,
     color=C["black"],
     ls="-",
     lw = 1,
@@ -689,13 +706,13 @@ line_theta_ikaite_water, = ax2.plot(
     zorder=-1,
 )
 theta_ikaite_water_fit = (
-    theta_ikaite_water_slope / theta_model_temperature_K + theta_intercept
+    theta_ikaite_water_slope / theta_model_temperature_k + theta_intercept
 )
 theta_ikaite_water_confidence = (
-    theta_ikaite_water_slope_error / theta_model_temperature_K
+    theta_ikaite_water_slope_error / theta_model_temperature_k
 )
 ax2.fill_between(
-    theta_model_1000_over_T,
+    theta_model_1000_over_t,
     theta_ikaite_water_fit - theta_ikaite_water_confidence,
     theta_ikaite_water_fit + theta_ikaite_water_confidence,
     color=C["black"],
@@ -704,24 +721,21 @@ ax2.fill_between(
     zorder=-2,
 )
 
-ax1.set_xlabel(r"Temperature ($10^{3}\,K^{-1}$)")
-ax1.set_ylabel(r"$10^{3}\,\ln\,{}^{18}\alpha_{\mathrm{ikaite \backslash water}}$")
 
+# Add legend -------------------------------------------------------------------
 add_standard_legend(
     ax1,
-    handles=[line_a18_KO97, line_a18_Daeron2019, line_a18_ikaite_water],
+    handles=[line_a18_ko97, line_a18_daeron2019, line_a18_ikaite_water],
     loc="lower right",
     fontsize=6
 )
 
-ax2.set_xlabel(r"Temperature ($10^{3}\,K^{-1}$)")
-ax2.set_ylabel(r"$\theta_{\mathrm{ikaite \backslash water}}$")
 
 add_standard_legend(
     ax2,
     handles=[
-        line_theta_H18,
-        line_theta_GZ19,
+        line_theta_h18,
+        line_theta_gz19,
         line_theta_ikaite_water,
         # high_temperature_limit,
     ],

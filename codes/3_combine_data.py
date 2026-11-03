@@ -1,4 +1,17 @@
-# Import libraries ------------------------------------------------------------
+# The following code is used to:
+# Combine the KIEL and offline carbonate isotope measurements
+#
+# INPUT:    replicate_data_KIEL_scaled.csv
+#           replicate_data_OFFLINE_scaled.csv
+#           sample_info.csv
+#
+# OUTPUT:   combined_replicate_data.csv
+#           combined_replicate_data.xlsx
+#           combined_replicates.png
+#           combined_replicates.svg
+
+
+# Import libraries -------------------------------------------------------------
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,19 +20,18 @@ from pathlib import Path
 from _helper_functions import *
 from _plot_style import *
 
-# Define directories ----------------------------------------------------------
+# Define directories -----------------------------------------------------------
 figures_dir = Path(__file__).resolve().parent.parent / "figures"
-source_data_dir = Path(__file__).resolve().parent.parent / "source_data"
-export_tables_dir = Path(__file__).resolve().parent.parent / "export_tables" / "csv"
+source_data_dir = Path(__file__).resolve().parent.parent / "data" / "input"
+export_tables_dir = Path(__file__).resolve().parent.parent / "data" / "exported" / "csv"
 
-
-# Apply plot style ------------------------------------------------------------
+# Apply plot style -------------------------------------------------------------
 apply_plot_style()
 plt.rcParams["figure.figsize"] = (8, 3.5)
 
 
 # This function averages the scaled data from multiple measurement periods
-def average_data(df):
+def average_data(df: pd.DataFrame) -> pd.DataFrame:
     # Calculate the mean values from the replicate measurements
     df = df.loc[:, ["SampleName", "d18O_AC", "d17O_AC", "Dp17O_AC"]]
     df_mean = df.groupby('SampleName').mean().reset_index()
@@ -44,28 +56,28 @@ def average_data(df):
         standard_error = df_std[col] / np.sqrt(df_std['replicates'])
         df_std[col] = standard_error * t_crit
 
-    dfMerged = df_mean.merge(df_std, on='SampleName')
-    df = dfMerged
+    df_merged = df_mean.merge(df_std, on='SampleName')
+    df = df_merged
 
     return df
 
 
-df_KIEL = pd.read_csv(export_tables_dir / "replicate_data_KIEL_scaled.csv")
-df_OFFLINE = pd.read_csv(export_tables_dir / "replicate_data_OFFLINE_scaled.csv")
+df_kiel = pd.read_csv(export_tables_dir / "replicate_data_KIEL_scaled.csv")
+df_offline = pd.read_csv(export_tables_dir / "replicate_data_OFFLINE_scaled.csv")
 
-for dfs in [df_KIEL, df_OFFLINE]:
+for dfs in [df_kiel, df_offline]:
     dfs.drop(dfs[dfs["SampleName"] == "MLVGL75"].index, inplace=True)
 
 
 # Apply acid fractionation factor
-df_KIEL[["d18O_AC", "d17O_AC", "Dp17O_AC"]] = df_KIEL.apply(lambda x: applyAFF(
+df_kiel[["d18O_AC", "d17O_AC", "Dp17O_AC"]] = df_kiel.apply(lambda x: apply_aff(
     x["d18O_scaled"], x["d17O_scaled"], "calcite", 90), axis=1, result_type="expand")
 
-df_OFFLINE[["d18O_AC", "d17O_AC", "Dp17O_AC"]] = df_OFFLINE.apply(lambda x: applyAFF(
+df_offline[["d18O_AC", "d17O_AC", "Dp17O_AC"]] = df_offline.apply(lambda x: apply_aff(
     x["d18O_scaled"], x["d17O_scaled"], "calcite", 25), axis=1, result_type="expand")
 
 
-df = pd.concat([df_KIEL, df_OFFLINE], ignore_index=True)
+df = pd.concat([df_kiel, df_offline], ignore_index=True)
 df = df[["SampleName", "d18O_AC", "d17O_AC", "Dp17O_AC"]].copy()
 df["SampleName"] = df["SampleName"].str.replace(r"[_\-.]", "", regex=True)
 df_avg = average_data(df)
@@ -81,19 +93,25 @@ export_table(df_avg,
                             "Dp17O_AC",  "Dp17O_error", "replicates"]
              )
 
-# Figures ---------------------------------------------------------------------
+# Create figure ----------------------------------------------------------------
 fig, (ax1, ax2) = plt.subplots(1, 2)
+
+# Setup axes -------------------------------------------------------------------
 setup_axes(fig)
+ax1.set_ylabel(r"$\Delta\prime^{17}$O (ppm, CO$_2$)")
+ax1.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW, CO$_2$)")
+ax2.set_ylabel(r"$\Delta\prime^{17}$O (ppm)")
+ax2.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW)")
 
 # Assign colors and markers to samples
 df.sort_values(by="SampleName", inplace=True)
 categories = df["SampleName"].unique()
 markers = dict(zip(categories, ["o", "s", "D", "^", "v", "X", "P", "*"]*10))
-colors = dict(zip(categories, plt.cm.tab20(
-    np.linspace(0, 1, len(categories)))))
+colors = dict(zip(categories, categorical_colors(len(categories))))
 
 
-# Subplot a: scaled sample replicates
+# Plot data --------------------------------------------------------------------
+# Scaled sample replicates
 for cat in categories:
     data = df[df["SampleName"] == cat]
     ax1.scatter(prime(data["d18O_AC"]), data["Dp17O_AC"],
@@ -101,14 +119,12 @@ for cat in categories:
     # ax1.errorbar(prime(df["d18O_scaled"]), df["Dp17O_scaled"],
     #              yerr=df["Dp17O_error"],
     #              xerr=df["d18O_error"],
-    #              fmt="none", color="#cacaca", zorder=0)
+    #              fmt="none", color=C["error_gray"], zorder=0)
 
 
-# Axis properties
+# Match the average panel to the replicate limits after autoscaling.
 ylim = ax1.get_ylim()
 xlim = ax1.get_xlim()
-ax1.set_ylabel(r"$\Delta\prime^{17}$O (ppm, CO$_2$)")
-ax1.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW, CO$_2$)")
 
 # Subplot B: scaled sample averages
 for cat in categories:
@@ -118,15 +134,14 @@ for cat in categories:
     ax2.errorbar(prime(df_avg["d18O_AC"]), df_avg["Dp17O_AC"],
                  yerr=df_avg["Dp17O_error"],
                  xerr=df_avg["d18O_error"],
-                 fmt="none", color="#cacaca", zorder=0)
+                 fmt="none", color=C["error_gray"], zorder=0)
 
-add_standard_legend(ax2, loc='upper right', bbox_to_anchor=(1.5, 1.02))
 
-# Axis properties
 ax2.set_ylim(ylim)
 ax2.set_xlim(xlim)
-ax2.set_ylabel(r"$\Delta\prime^{17}$O (ppm)")
-ax2.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW)")
+
+# Add legend -------------------------------------------------------------------
+add_standard_legend(ax2, loc='upper right', bbox_to_anchor=(1.5, 1.02))
 
 save_figure(fig, figures_dir, f"combined_replicates")
 

@@ -1,4 +1,20 @@
-# Import libraries ------------------------------------------------------------
+# The following code is used to:
+# Scale and average the KIEL triple oxygen isotope measurements
+#
+# INPUT:    replicate_data_KIEL.csv
+#           sample_info.csv
+#
+# OUTPUT:   replicate_data_KIEL_scaled.csv
+#           replicate_data_KIEL_scaled.xlsx
+#           replicate_data_KIEL_averaged.csv
+#           replicate_data_KIEL_averaged.xlsx
+#           KIEL_replicates_20250527seq.png
+#           KIEL_replicates_summary.png
+#           KIEL_replicates_20250527seq.svg
+#           KIEL_replicates_summary.svg
+
+
+# Import libraries -------------------------------------------------------------
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,85 +23,93 @@ from pathlib import Path
 from _helper_functions import *
 from _plot_style import *
 
-# Define directories ----------------------------------------------------------
+# Define directories -----------------------------------------------------------
 figures_dir = Path(__file__).resolve().parent.parent / "figures"
-data_dir = Path(__file__).resolve().parent.parent / "source_data"
+data_dir = Path(__file__).resolve().parent.parent / "data" / "input"
 
-
-# Apply plot style ------------------------------------------------------------
+# Apply plot style -------------------------------------------------------------
 apply_plot_style()
 plt.rcParams["figure.figsize"] = (9, 4)
 plt.rcParams.update({'font.size': 7})
 
-
-# Define additional functions -------------------------------------------------
-
+# Define additional functions --------------------------------------------------
 # Function to print info for scaled samples
-def print_info(df, d18O_col, Dp17O_col, sample_name):
+def print_info(
+    df: pd.DataFrame, d18o_col: str, dp17o_col: str, sample_name: str
+) -> None:
     gas_subset = df[df["SampleName"].str.contains(sample_name)].copy()
-    d18O_mean = gas_subset[d18O_col].mean()
-    d18O_std = gas_subset[d18O_col].std()
-    Dp17O_mean = gas_subset[Dp17O_col].mean()
-    Dp17O_std = gas_subset[Dp17O_col].std()
-    N_gas = len(gas_subset)
-    print(f"{sample_name}, N = {N_gas}, d18O = {d18O_mean:.3f}(±{d18O_std:.3f})‰, ∆'17O = {Dp17O_mean:.0f}(±{Dp17O_std:.0f}) ppm", end="")
+    d18o_mean = gas_subset[d18o_col].mean()
+    d18o_std = gas_subset[d18o_col].std()
+    dp17o_mean = gas_subset[dp17o_col].mean()
+    dp17o_std = gas_subset[dp17o_col].std()
+    n_gas = len(gas_subset)
+    print(f"{sample_name}, N = {n_gas}, d18O = {d18o_mean:.3f}(±{d18o_std:.3f})‰, ∆'17O = {dp17o_mean:.0f}(±{dp17o_std:.0f}) ppm", end="")
 
 # This function scales the data based on the accepted values of the light and heavy reference gases
 # The scaling is done for each measurement period separately
-def scaleData(df):
+def scale_data(df: pd.DataFrame) -> pd.DataFrame:
 
     df["dateTimeMeasured"] = pd.to_datetime(df["dateTimeMeasured"])
 
     # Perform the scaling for each meausrement period separately
     df_samples = pd.DataFrame()
     grouped = df.groupby("KielSequence")
-    for FigNum, (period, group) in enumerate(grouped):
-        SuppFig = chr(ord("a") + FigNum)
+    for figure_number, (period, group) in enumerate(grouped):
+        subplot_label = chr(ord("a") + figure_number)
 
         print(f"\nMeasurement period {period}:")
-        print_info(group, "d18O", "Dp17O", "NBS18"); print("\t<--- unscaled")
-        print_info(group, "d18O", "Dp17O", "IAEA603"); print("\t<--- unscaled")
+        print_info(group, "d18O", "Dp17O", "NBS18")
+        print("\t<--- unscaled")
+        print_info(group, "d18O", "Dp17O", "IAEA603")
+        print("\t<--- unscaled")
 
         # Do the scaling here, based on the accepted values of the light and heavy reference gases
 
         # Measured CO2 values
-        IAEA603_d18O_measured = group[group["SampleName"].str.contains("IAEA603")]["d18O"].mean()
-        IAEA603_d17O_measured = group[group["SampleName"].str.contains("IAEA603")]["d17O"].mean()
+        iaea603_d18o_measured = group[group["SampleName"].str.contains("IAEA603")]["d18O"].mean()
+        iaea603_d17o_measured = group[group["SampleName"].str.contains("IAEA603")]["d17O"].mean()
 
-        NBS18_d18O_measured = group[group["SampleName"].str.contains("NBS18")]["d18O"].mean()
-        NBS18_d17O_measured = group[group["SampleName"].str.contains("NBS18")]["d17O"].mean()
+        nbs18_d18o_measured = group[group["SampleName"].str.contains("NBS18")]["d18O"].mean()
+        nbs18_d17o_measured = group[group["SampleName"].str.contains("NBS18")]["d17O"].mean()
 
         # Accepted CO2 values
-        IAEA603_d18O_accepted = (to_VSMOW(-2.37) + 1000) * 1.008146 - 1000 # CO2 from 90°C acid digestion of -2.37 VPDB
-        IAEA603_Dp17O_accepted = -127.3 # CO2 from 90 °C acid digestion; Chaillot et al. (2025)
-        IAEA603_d17O_accepted = d17O(IAEA603_d18O_accepted, IAEA603_Dp17O_accepted)
+        iaea603_d18o_accepted = (to_vsmow(-2.37) + 1000) * 1.008146 - 1000 # CO2 from 90°C acid digestion of -2.37 VPDB
+        iaea603_dp17o_accepted = -127.3 # CO2 from 90 °C acid digestion; Chaillot et al. (2025)
+        iaea603_d17o_accepted = d17o(iaea603_d18o_accepted, iaea603_dp17o_accepted)
 
-        NBS18_d18O_accepted = (to_VSMOW(-23.01) + 1000) * 1.008146 - 1000 # CO2 from 90°C acid digestion of -23.01 VPDB
-        NBS18_Dp17O_accepted = -101.3 # CO2 from 90 °C acid digestion; Chaillot et al. (2025)
-        NBS18_d17O_accepted = d17O(NBS18_d18O_accepted, NBS18_Dp17O_accepted)
+        nbs18_d18o_accepted = (to_vsmow(-23.01) + 1000) * 1.008146 - 1000 # CO2 from 90°C acid digestion of -23.01 VPDB
+        nbs18_dp17o_accepted = -101.3 # CO2 from 90 °C acid digestion; Chaillot et al. (2025)
+        nbs18_d17o_accepted = d17o(nbs18_d18o_accepted, nbs18_dp17o_accepted)
 
         # Calculate the scaling factors
-        slope_d18O = (NBS18_d18O_accepted - IAEA603_d18O_accepted) / (NBS18_d18O_measured - IAEA603_d18O_measured)
-        intercept_d18O = IAEA603_d18O_accepted - slope_d18O * IAEA603_d18O_measured
+        slope_d18o = (nbs18_d18o_accepted - iaea603_d18o_accepted) / (nbs18_d18o_measured - iaea603_d18o_measured)
+        intercept_d18o = iaea603_d18o_accepted - slope_d18o * iaea603_d18o_measured
 
-        slope_d17O = (NBS18_d17O_accepted - IAEA603_d17O_accepted) / (NBS18_d17O_measured - IAEA603_d17O_measured)
-        intercept_d17O = IAEA603_d17O_accepted - slope_d17O * IAEA603_d17O_measured
+        slope_d17o = (nbs18_d17o_accepted - iaea603_d17o_accepted) / (nbs18_d17o_measured - iaea603_d17o_measured)
+        intercept_d17o = iaea603_d17o_accepted - slope_d17o * iaea603_d17o_measured
 
         # Scale the measured values
-        group["d18O_scaled"] = slope_d18O*group['d18O']+intercept_d18O
-        group["d17O_scaled"] = slope_d17O*group['d17O']+intercept_d17O
-        group["Dp17O_scaled"] = Dp17O(group["d17O_scaled"], group["d18O_scaled"])
+        group["d18O_scaled"] = slope_d18o*group['d18O']+intercept_d18o
+        group["d17O_scaled"] = slope_d17o*group['d17O']+intercept_d17o
+        group["Dp17O_scaled"] = dp17o(group["d17O_scaled"], group["d18O_scaled"])
 
         # Assign colors and markers to samples
         categories = group["SampleName"].unique()
         markers = dict(zip(categories, ["o", "s", "D", "v", "^",
                                         "<", ">", "p", "P", "*"]*10))
-        colors = dict(zip(categories, plt.cm.tab20(np.linspace(0, 1, 20))))
+        colors = dict(zip(categories, categorical_colors(20)))
 
-        # Figure: unscaled Dp17O vs time
-
+        # Create figure --------------------------------------------------------
         fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(9, 6))
 
+        # Setup axes -----------------------------------------------------------
+        ax1.set_ylabel(r"$\Delta\prime^{17}$O (ppm, unscaled CO$_2$)")
+        ax2.set_ylabel(r'$\chi\prime^{smp}_{626}$ - $\chi\prime^{ref}_{626}$ (µmol mol$^{-1}$)')
+        ax2.set_xlabel("Measurement date")
+        ax1.text(0.02, 0.98, subplot_label, size=14, ha="left", va="top",
+                transform=ax1.transAxes, fontweight="bold")
+
+        # Plot data ------------------------------------------------------------
         for cat in categories:
             data = group[group["SampleName"] == cat]
             ax1.scatter(data["dateTimeMeasured"], data["Dp17O"],
@@ -93,22 +117,17 @@ def scaleData(df):
             if np.isnan(data["Dp17OError"]).any() == False:
                 ax1.errorbar(data["dateTimeMeasured"], data["Dp17O"],
                              yerr=data["Dp17OError"],
-                             fmt="none", color="#cacaca", zorder=0)
+                             fmt="none", color=C["error_gray"], zorder=0)
             ax2.scatter(data["dateTimeMeasured"], data["pCO2Mismatch"],
                         marker=markers[cat], fc=colors[cat])
             if np.isnan(data["pCO2Mismatch_error"]).any() == False:
                 ax2.errorbar(data["dateTimeMeasured"], data["pCO2Mismatch"],
                              yerr=data["pCO2Mismatch_error"],
-                             fmt="none", color="#cacaca", zorder=0)
-        
-        ax1.legend(loc='upper right', bbox_to_anchor=(1.15, 1))
+                             fmt="none", color=C["error_gray"], zorder=0)
 
-        ax1.set_title(f"Kiel sequence: {period}")
-        ax1.set_ylabel(r"$\Delta\prime^{17}$O (ppm, unscaled CO$_2$)")
-        ax2.set_ylabel(r'$\chi\prime^{smp}_{626}$ - $\chi\prime^{ref}_{626}$ (µmol mol$^{-1}$)')
-        ax2.set_xlabel("Measurement date")
-        ax1.text(0.02, 0.98, SuppFig, size=14, ha="left", va="top",
-                transform=ax1.transAxes, fontweight="bold")
+
+        # Add legend -----------------------------------------------------------
+        ax1.legend(loc='upper right', bbox_to_anchor=(1.15, 1))
 
         save_figure(fig, figures_dir, f"KIEL_replicates_{period}")
 
@@ -120,7 +139,7 @@ def scaleData(df):
 
 
 # This function averages the scaled data from multiple measurement periods
-def average_data(df):
+def average_data(df: pd.DataFrame) -> pd.DataFrame:
     # Calculate the mean values from the replicate measurements
     df = df.loc[:, ["SampleName", "d18O_scaled", "d17O_scaled", "Dp17O_scaled"]]
     df_mean = df.groupby('SampleName').mean().reset_index()
@@ -145,16 +164,14 @@ def average_data(df):
         standard_error = df_std[col] / np.sqrt(df_std['replicates'])
         df_std[col] = standard_error * t_crit
 
-    dfMerged = df_mean.merge(df_std, on='SampleName')
-    df = dfMerged
+    df_merged = df_mean.merge(df_std, on='SampleName')
+    df = df_merged
 
     return df
 
-
-# Data processing -------------------------------------------------------------
-
+# Data processing --------------------------------------------------------------
 # Scale the data
-df = scaleData(pd.read_csv(data_dir /  "replicate_data_KIEL.csv"))
+df = scale_data(pd.read_csv(data_dir /  "replicate_data_KIEL.csv"))
 
 # Export the scaled data on a replicate level
 export_table(df, "replicate_data_KIEL_scaled")
@@ -163,7 +180,7 @@ export_table(df, "replicate_data_KIEL_scaled")
 df_avg = average_data(df)
 
 # Apply acid fractionation factor
-df_avg[["d18O_AC", "d17O_AC", "Dp17O_AC"]] = df_avg.apply(lambda x: applyAFF(
+df_avg[["d18O_AC", "d17O_AC", "Dp17O_AC"]] = df_avg.apply(lambda x: apply_aff(
     x["d18O_CO2"], x["d17O_CO2"], "calcite", 90), axis=1, result_type="expand")
 
 # Merge data with sample info
@@ -178,19 +195,28 @@ export_table(df_avg,
                             "Dp17O_AC",  "Dp17O_error", "replicates"]
              )
 
-
-# Figures ---------------------------------------------------------------------
+# Create figure ----------------------------------------------------------------
 fig, (ax1, ax2) = plt.subplots(1, 2)
+
+# Setup axes -------------------------------------------------------------------
+ax1.set_ylabel(r"$\Delta\prime^{17}$O (ppm, CO$_2$)")
+ax1.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW, CO$_2$)")
+ax1.text(0.02, 0.98, "b", size=14, ha="left", va="top",
+         transform=ax1.transAxes, fontweight="bold")
+ax2.set_ylabel(r"$\Delta\prime^{17}$O (ppm, CO$_2$)")
+ax2.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW, CO$_2$)")
+ax2.text(0.02, 0.98, "c", size=14, ha="left", va="top",
+         transform=ax2.transAxes, fontweight="bold")
 
 # Assign colors and markers to samples
 df.sort_values(by="SampleName", inplace=True)
 categories = df["SampleName"].unique()
 markers = dict(zip(categories, ["o", "s", "D", "^", "v", "X", "P", "*"]*10))
-colors = dict(zip(categories, plt.cm.tab20(
-    np.linspace(0, 1, len(categories)))))
+colors = dict(zip(categories, categorical_colors(len(categories))))
 
 
-# Subplot a: scaled sample replicates
+# Plot data --------------------------------------------------------------------
+# Scaled sample replicates
 for cat in categories:
     data = df[df["SampleName"] == cat]
     ax1.scatter(prime(data["d18O_scaled"]), data["Dp17O_scaled"],
@@ -198,16 +224,12 @@ for cat in categories:
     ax1.errorbar(prime(df["d18O_scaled"]), df["Dp17O_scaled"],
                  yerr=df["Dp17OError"],
                  xerr=df["d18OError"],
-                 fmt="none", color="#cacaca", zorder=0)
+                 fmt="none", color=C["error_gray"], zorder=0)
 
 
-# Axis properties
+# Match the average panel to the replicate limits after autoscaling.
 ylim = ax1.get_ylim()
 xlim = ax1.get_xlim()
-ax1.set_ylabel(r"$\Delta\prime^{17}$O (ppm, CO$_2$)")
-ax1.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW, CO$_2$)")
-ax1.text(0.02, 0.98, "b", size=14, ha="left", va="top",
-         transform=ax1.transAxes, fontweight="bold")
 
 # Subplot B: scaled sample averages
 for cat in categories:
@@ -217,16 +239,13 @@ for cat in categories:
     ax2.errorbar(prime(df_avg["d18O_CO2"]), df_avg["Dp17O_CO2"],
                  yerr=df_avg["Dp17O_error"],
                  xerr=df_avg["d18O_error"],
-                 fmt="none", color="#cacaca", zorder=0)
+                 fmt="none", color=C["error_gray"], zorder=0)
 
-ax2.legend(loc='upper right', bbox_to_anchor=(1.36, 1))
 
-# Axis properties
 ax2.set_ylim(ylim)
 ax2.set_xlim(xlim)
-ax2.set_ylabel(r"$\Delta\prime^{17}$O (ppm, CO$_2$)")
-ax2.set_xlabel(r"$\delta\prime^{18}$O (‰, VSMOW, CO$_2$)")
-ax2.text(0.02, 0.98, "c", size=14, ha="left", va="top",
-         transform=ax2.transAxes, fontweight="bold")
+
+# Add legend -------------------------------------------------------------------
+ax2.legend(loc='upper right', bbox_to_anchor=(1.36, 1))
 
 save_figure(fig, figures_dir, "KIEL_replicates_summary")

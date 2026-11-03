@@ -1,12 +1,13 @@
 from pathlib import Path
 import numpy as np
+from numpy.typing import ArrayLike
 import pandas as pd
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 
 
-def to_VSMOW(VPDB):
-    return (VPDB*1.03092)+30.92
+def to_vsmow(vpdb: ArrayLike) -> ArrayLike:
+    return (vpdb*1.03092)+30.92
 
 
 def prime(x):
@@ -17,56 +18,69 @@ def unprime(x):
     return (np.exp(x / 1000) - 1) * 1000
 
 
-def Dp17O(d17O, d18O):
-    return (prime(d17O) - 0.528 * prime(d18O)) * 1000
+def dp17o(d17o: ArrayLike, d18o: ArrayLike) -> ArrayLike:
+    return (prime(d17o) - 0.528 * prime(d18o)) * 1000
 
 
-def d17O(d18O, Dp17O):
-    return unprime(Dp17O / 1000 + 0.528 * prime(d18O))
+def d17o(d18o: ArrayLike, dp17o: ArrayLike) -> ArrayLike:
+    return unprime(dp17o / 1000 + 0.528 * prime(d18o))
 
 
-def a18_cc(T):
-    return np.exp((17.57 * 1000 / T - 30.55) / 1000)
+def a18_cc(t: ArrayLike) -> ArrayLike:
+    return np.exp((17.57 * 1000 / t - 30.55) / 1000)
     # From the ikaite_water_equilibrium.py script
 
 
-def theta_cc(T):
-    return -1.47/T + 0.5305
+def theta_cc(t: ArrayLike) -> ArrayLike:
+    return -1.47/t + 0.5305
     # From the ikaite_water_equilibrium.py script
 
 
-def a17_cc(T):
-    return a18_cc(T)**theta_cc(T)
+def a17_cc(t: ArrayLike) -> ArrayLike:
+    return a18_cc(t)**theta_cc(t)
 
 
-def d18O_cc(equilibrium_temperatures, d18Ow):
-    return a18_cc(equilibrium_temperatures) * (d18Ow+1000) - 1000
+def d18o_cc(equilibrium_temperatures: ArrayLike, d18ow: ArrayLike) -> ArrayLike:
+    return a18_cc(equilibrium_temperatures) * (d18ow+1000) - 1000
 
 
-def d17O_cc(equilibrium_temperatures, d18Ow):
-    return a17_cc(equilibrium_temperatures) * (d18Ow+1000) - 1000
+def d17o_cc(equilibrium_temperatures: ArrayLike, d18ow: ArrayLike) -> ArrayLike:
+    return a17_cc(equilibrium_temperatures) * (d18ow+1000) - 1000
 
 
-def mix_d17O(d18O_A, d17O_A=None, D17O_A=None, d18O_B=None, d17O_B=None, D17O_B=None, step=100):
-    ratio_B = np.arange(0, 1+1/step, 1/step)
+def mix_d17o(
+    d18o_a: float,
+    d17o_a: float | None = None,
+    dp17o_a: float | None = None,
+    d18o_b: float | None = None,
+    d17o_b: float | None = None,
+    dp17o_b: float | None = None,
+    step: int = 100,
+) -> pd.DataFrame:
+    ratio_b = np.arange(0, 1+1/step, 1/step)
 
-    if d17O_A is None:
-        d17O_A = unprime(D17O_A/1000 + 0.528 * prime(d18O_A))
+    if d17o_a is None:
+        d17o_a = unprime(dp17o_a/1000 + 0.528 * prime(d18o_a))
 
-    if d17O_B is None:
-        d17O_B = unprime(D17O_B/1000 + 0.528 * prime(d18O_B))
+    if d17o_b is None:
+        d17o_b = unprime(dp17o_b/1000 + 0.528 * prime(d18o_b))
 
-    mix_d18O = ratio_B * float(d18O_B) + (1 - ratio_B) * float(d18O_A)
-    mix_d17O = ratio_B * float(d17O_B) + (1 - ratio_B) * float(d17O_A)
-    mix_D17O = Dp17O(mix_d17O, mix_d18O)
-    xB = ratio_B * 100
+    mix_d18o = ratio_b * float(d18o_b) + (1 - ratio_b) * float(d18o_a)
+    mix_d17o = ratio_b * float(d17o_b) + (1 - ratio_b) * float(d17o_a)
+    mix_dp17o = dp17o(mix_d17o, mix_d18o)
+    x_b = ratio_b * 100
 
     df = pd.DataFrame(
-        {'mix_d17O': mix_d17O, 'mix_d18O': mix_d18O, 'mix_Dp17O': mix_D17O, 'xB': xB})
+        {'mix_d17O': mix_d17o, 'mix_d18O': mix_d18o, 'mix_Dp17O': mix_dp17o, 'xB': x_b})
     return df
 
 
-def applyAFF(d18O_CO2, d17O_CO2, mineral, temperature_C):
+def apply_aff(
+    d18o_co2: ArrayLike,
+    d17o_co2: ArrayLike,
+    mineral: str,
+    temperature_c: float,
+) -> tuple[ArrayLike, ArrayLike, ArrayLike]:
 
     mineral = mineral.lower()
 
@@ -80,7 +94,7 @@ def applyAFF(d18O_CO2, d17O_CO2, mineral, temperature_C):
         a18_25 = 1.010596
         a18_90 = 1.008541
         a18_70 = 1.00909
-    
+
     elif mineral == "dolomite":
         # Rosenbaum and Sheppard (1986)
         a18_90 = np.exp((6.65*10**5*(1/(90+273.15)**2)+4.23)/1000)
@@ -88,24 +102,24 @@ def applyAFF(d18O_CO2, d17O_CO2, mineral, temperature_C):
     else:
         raise ValueError(f"Unsupported mineral: {mineral}")
 
-    if temperature_C == 90:
+    if temperature_c == 90:
         a18 = a18_90
         theta_acid = 1.2019/(90+273.15) + 0.5192
-    elif temperature_C == 25:
+    elif temperature_c == 25:
         a18 = a18_25
         theta_acid = 1.2019/(25+273.15) + 0.5192
-    elif temperature_C == 70:
+    elif temperature_c == 70:
         a18 = a18_70
         theta_acid = 1.2019/(70+273.15) + 0.5192
 
     else:
         raise ValueError("temperature_C must be 25, 70, or 90.")
 
-    d18O_AC = (d18O_CO2 + 1000) / a18 - 1000
-    d17O_AC = (d17O_CO2 + 1000) / (a18 ** theta_acid) - 1000
-    Dp17O_AC = Dp17O(d17O_AC, d18O_AC)
+    d18o_ac = (d18o_co2 + 1000) / a18 - 1000
+    d17o_ac = (d17o_co2 + 1000) / (a18 ** theta_acid) - 1000
+    dp17o_ac = dp17o(d17o_ac, d18o_ac)
 
-    return d18O_AC, d17O_AC, Dp17O_AC
+    return d18o_ac, d17o_ac, dp17o_ac
 
 
 def confidence_ellipse(x, y, ax, n_std=3, **kwargs):
@@ -191,19 +205,19 @@ def export_table(df, file_name, print_columns=None, include_index=False):
     tuple[str, str]
         Paths to the exported CSV and XLSX files.
     """
-    import os
     from tabulate import tabulate
 
     if not isinstance(df, pd.DataFrame):
         raise TypeError("df must be a pandas DataFrame")
 
-    tables_dir = data_dir = Path(__file__).resolve().parent.parent / "export_tables"
+    tables_dir = Path(__file__).resolve().parent.parent / "data" / "exported"
+    csv_dir = tables_dir / "csv"
+    xlsx_dir = tables_dir / "xlsx"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+    xlsx_dir.mkdir(parents=True, exist_ok=True)
 
-    os.makedirs(os.path.join(data_dir, "csv"), exist_ok=True)
-    os.makedirs(os.path.join(data_dir, "xlsx"), exist_ok=True)
-
-    csv_path = os.path.join(tables_dir, "csv", f"{file_name}.csv")
-    xlsx_path = os.path.join(tables_dir, "xlsx", f"{file_name}.xlsx")
+    csv_path = csv_dir / f"{file_name}.csv"
+    xlsx_path = xlsx_dir / f"{file_name}.xlsx"
 
     df.to_csv(csv_path, index=include_index)
     df.to_excel(xlsx_path, index=include_index)
@@ -224,4 +238,4 @@ def export_table(df, file_name, print_columns=None, include_index=False):
         print(tabulate(printable_df, headers="keys", tablefmt="simple_outline", showindex=False))
         print(f"Number of rows: {len(printable_df)}")
 
-    return csv_path, xlsx_path
+    return str(csv_path), str(xlsx_path)
