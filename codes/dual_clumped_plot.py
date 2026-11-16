@@ -43,13 +43,13 @@ def fiebig_2024(t_in_c: ArrayLike) -> tuple[ArrayLike, ArrayLike]:
     return d47, d48
 
 # Define colors ----------------------------------------------------------------
-light_blue = C["sample_blue"]
-dark_gray = C["sample_dark_gray"]
-light_gray = C["sample_light_gray"]
+light_blue = C["cyan5"]
+dark_gray = C["cgray7"]
+light_gray = C["cgray3"]
 
 sample_styles = {
     "1567C": {"fc": light_blue, "ec": light_blue, "group": "Age"},
-    "1568A": {"fc": light_blue, "ec": C["red"], "group": "Age"},
+    "1568A": {"fc": light_blue, "ec": C["violet5"], "group": "Age"},
     "1570A": {"fc": light_blue, "ec": "black", "group": "Age"},
     "+15": {"fc": C["red"], "ec": C["red"], "group": "Other"},
     "Congo fan": {"fc": dark_gray, "ec": dark_gray, "group": "Site"},
@@ -57,7 +57,7 @@ sample_styles = {
 
 legend_handles = []
 legend_sections = {
-    "Age": "Exp 396 glendonites",
+    "Age": "Exp. 396 glendonites",
     "Site": "modern ikaites",
     "Other": "Fur Fm. glendonites",
 }
@@ -109,7 +109,12 @@ for sample_name, style in sample_styles.items():
         continue
 
     age = sample_data["Age"].iloc[0]
-    legend_label = f"{sample_name} ({age})"
+    if style["group"] == "Age":
+        legend_label = f"{age} ({sample_name})"
+    elif style["group"] == "Site":
+        legend_label = sample_name
+    else:
+        legend_label = f"{sample_name} ({age})"
 
     if style["group"] != current_legend_section:
         legend_handles.append(
@@ -127,7 +132,7 @@ for sample_name, style in sample_styles.items():
         markerfacecolor=style["fc"],
         markeredgecolor=style["ec"],
         markeredgewidth=0.8,
-        ecolor=style["ec"],
+        ecolor=style["fc"] if style["group"] == "Age" else style["ec"],
         markersize=4,
         capsize=0,
         linestyle="none",
@@ -151,11 +156,15 @@ for sample_name, style in sample_styles.items():
 
 # Add legend -------------------------------------------------------------------
 legend = ax.legend(handles=legend_handles, loc="lower right",
-                   fancybox=False, markerscale=1,
-                   fontsize=6, edgecolor="k", facecolor="none",
-                   borderpad=0.5, labelspacing=0.5,
-                   handlelength=1.0, handletextpad=0.4,
-                   borderaxespad=0.4)
+                   fancybox=False,
+                   edgecolor="k",
+                   facecolor="none",
+                   markerscale=0.9,
+                   fontsize=6,
+                   borderpad=0.5, labelspacing=0.25,
+                   handlelength=1.0, handletextpad=0.3,
+                   borderaxespad=0.4
+                   )
 for text in legend.get_texts():
     if text.get_text() in legend_sections.values():
         text.set_weight("bold")

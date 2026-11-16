@@ -119,7 +119,7 @@ for cat in categories:
     # ax1.errorbar(prime(df["d18O_scaled"]), df["Dp17O_scaled"],
     #              yerr=df["Dp17O_error"],
     #              xerr=df["d18O_error"],
-    #              fmt="none", color=C["error_gray"], zorder=0)
+    #              fmt="none", color=C["cgray2"], zorder=0)
 
 
 # Match the average panel to the replicate limits after autoscaling.
@@ -134,7 +134,7 @@ for cat in categories:
     ax2.errorbar(prime(df_avg["d18O_AC"]), df_avg["Dp17O_AC"],
                  yerr=df_avg["Dp17O_error"],
                  xerr=df_avg["d18O_error"],
-                 fmt="none", color=C["error_gray"], zorder=0)
+                 fmt="none", color=C["cgray2"], zorder=0)
 
 
 ax2.set_ylim(ylim)

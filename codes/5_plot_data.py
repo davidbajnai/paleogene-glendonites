@@ -101,12 +101,12 @@ df_carbonates = pd.read_csv(export_tables_dir / "combined_replicate_data.csv")
 reconstruction_temperature_by_age_c = {
     "pre-PETM": 5,
     "PETM": 3,
-    "early Eocene": 7,
+    "post-PETM": 7,
 }
 reconstruction_temperature_error_by_age_c = {
     "pre-PETM": 3,
     "PETM": 2,
-    "early Eocene": 2,
+    "post-PETM": 2,
 }
 non_modern = df_carbonates["age"] != "modern"
 
@@ -173,14 +173,14 @@ ax.yaxis.set_minor_locator(MultipleLocator(10))
 
 # Plot data --------------------------------------------------------------------
 
-light_blue = C["sample_blue"]
-dark_gray = C["sample_dark_gray"]
-light_gray = C["sample_light_gray"]
+light_blue = C["cyan5"]
+dark_gray = C["cgray7"]
+light_gray = C["cgray3"]
 
 sample_styles = {
     "pre-PETM": {"fc": light_blue, "ec": light_blue, "group": "age"},
-    "PETM": {"fc": light_blue, "ec": C["red"], "group": "age"},
-    "early Eocene": {"fc": light_blue, "ec": "black", "group": "age"},
+    "PETM": {"fc": light_blue, "ec": C["violet5"], "group": "age"},
+    "post-PETM": {"fc": light_blue, "ec": "black", "group": "age"},
     "Congo fan": {"fc": dark_gray, "ec": dark_gray, "group": "site"},
     "South Georgia": {"fc": light_gray, "ec": dark_gray, "group": "site"},
     "Bransfield Strait": {"fc": dark_gray, "ec": light_gray, "group": "site"},
@@ -224,7 +224,7 @@ eq = plot_calcite_equilibrium(
 
 # Plot modeled fluids ----------------------------------------------------------
 ax.text(-11, -38,
-        "reconstructed\nparent waters",
+        "modeled\nparent waters",
         va="center", ha="right", color="k", fontsize=6,
         )
 ax.annotate("",
@@ -237,7 +237,7 @@ ax.annotate("",
             )
 
 # Plot samples
-order = ['pre-PETM', 'PETM', 'early Eocene', 'modern']
+order = ['pre-PETM', 'PETM', 'post-PETM', 'modern']
 order_map = {key: i for i, key in enumerate(order)}
 df_carbonates = df_carbonates.sort_values(
     by='age',
@@ -245,11 +245,18 @@ df_carbonates = df_carbonates.sort_values(
 )
 
 legend_handles = []
+age_mean_handles = []
 legend_sections = {
-    "age": "Exp 396 glendonites",
+    "age": "Exp. 396 glendonites",
     "site": "modern ikaites",
+    "water": "modeled parent waters",
 }
 current_legend_section = None
+exp396_legend_labels = {
+    "pre-PETM": "pre-PETM (1567C)",
+    "PETM": "PETM (1568A)",
+    "post-PETM": "post-PETM (1569A, 1570A)",
+}
 
 df_reconstructed = df_carbonates[df_carbonates["age"] != "modern"].copy()
 if not df_reconstructed.empty:
@@ -268,7 +275,6 @@ if not df_reconstructed.empty:
             zorder=2,
         ))
 
-    age_mean_handles = []
     parent_water_d18o_uncertainties = []
     parent_water_dp17o_uncertainties = []
     for age in order:
@@ -324,7 +330,7 @@ if not df_reconstructed.empty:
         )
         parent_water_d18o_uncertainties.append(mean_d18o_uncertainty)
         parent_water_dp17o_uncertainties.append(mean_dp17o_uncertainty)
-        ax.scatter(
+        parent_water_handle = ax.scatter(
             prime(mean_d18o_water),
             mean_dp17o_water,
             marker="*",
@@ -332,7 +338,9 @@ if not df_reconstructed.empty:
             fc=style["fc"],
             ec=style["ec"],
             zorder=14,
+            label=age,
         )
+        age_mean_handles.append(parent_water_handle)
         print(
             f"Modeled parent water for {age}: "
             f"δ18O = {mean_d18o_water:.1f} ± {mean_d18o_uncertainty:.1f} ‰, "
@@ -362,7 +370,7 @@ for style_key, style in sample_styles.items():
 
     x_vals = prime(dat["d18O_AC"])
     y_vals = dat["Dp17O_AC"]
-    marker_label = f"{style_key}"
+    marker_label = exp396_legend_labels.get(style_key, style_key)
 
     sample_handle = ax.scatter(
         x_vals, y_vals,
@@ -380,7 +388,7 @@ for style_key, style in sample_styles.items():
         x_vals, y_vals,
         xerr=dat["d18O_error"], yerr=dat["Dp17O_error"],
         fmt="none",
-        color=style["ec"],
+        color=style["fc"] if style["group"] == "age" else style["ec"],
         zorder=5
     )
 
@@ -388,12 +396,12 @@ for style_key, style in sample_styles.items():
 df_mix = mix_d17o(d18o_a=d18o_ice_free, dp17o_a=dp17o_ice_free,
                   d18o_b=d18o_meteoric_water, dp17o_b=dp17o_meteoric_water)
 ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"],
-        color=C["meteoric"], ls="-", lw=1.5)
+        color=C["turquoise4"], ls="-", lw=1.5)
 ax.scatter(prime(df_mix["mix_d18O"].iloc[-1]), df_mix["mix_Dp17O"].iloc[[-1]],
-            marker = "*", ec=C["meteoric"], fc="w", s=60, zorder=10)
+            marker = "*", ec=C["turquoise4"], fc="w", s=60, zorder=10)
 ax.text(prime(df_mix["mix_d18O"].iloc[-1]) + 2, df_mix["mix_Dp17O"].iloc[-1],
         "Eocene\nmeteoric water",
-        va="center", ha="left", color=C["meteoric"], fontsize=6,
+        va="center", ha="left", color=C["turquoise4"], fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
 df_mix = mix_d17o(d18o_a=d18o_ice_free, dp17o_a=dp17o_ice_free,
@@ -411,22 +419,27 @@ ax.annotate("50%",
 # Mixing line between modern seawater and Greenland ice
 df_mix = mix_d17o(d18o_a=d18o_ice_free, dp17o_a=dp17o_ice_free,
                   d18o_b=d18o_ice, dp17o_b=dp17o_ice)
-ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"], color=C["snowmelt"], linestyle="-", lw=1.5)
+ax.plot(prime(df_mix["mix_d18O"]), df_mix["mix_Dp17O"], color=C["cyan4"], linestyle="-", lw=1.5)
 ax.scatter(prime(df_mix["mix_d18O"].iloc[-1]), df_mix["mix_Dp17O"].iloc[[-1]],
-            marker = "*", ec=C["snowmelt"], fc="w", s=60, zorder=100)
+            marker = "*", ec=C["cyan4"], fc="w", s=60, zorder=100)
 ax.text(prime(d18o_ice) + 2, dp17o_ice,
         "snowmelt",
-        va="center", ha="left", color=C["snowmelt"], fontsize=6,
+        va="center", ha="left", color=C["cyan4"], fontsize=6,
         # bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8)
         )
 
+
+# Use the midpoint of the two endmember colors for their mixing line.
+meteoric_rgb = np.array(mcolors.to_rgb(C["turquoise4"]))
+ice_rgb = np.array(mcolors.to_rgb(C["cyan4"]))
+mixed_water_color = mcolors.to_hex((meteoric_rgb + ice_rgb) / 2)
 
 df_mix_meteoric_ice = mix_d17o(d18o_a=d18o_meteoric_water, dp17o_a=dp17o_meteoric_water,
                                d18o_b=d18o_ice, dp17o_b=dp17o_ice, step=100)
 ax.plot(
     prime(df_mix_meteoric_ice["mix_d18O"]),
     df_mix_meteoric_ice["mix_Dp17O"],
-    color=C["mixed_water"],
+    color=mixed_water_color,
     linestyle="--",
     lw=1.2,
     zorder=1,
@@ -443,9 +456,7 @@ ax.annotate("50%",
             )
 
 
-# for every point in df_mix, draw mixing line between the endmember and ice-free ocean
-meteoric_rgb = np.array(mcolors.to_rgb(C["meteoric"]))
-ice_rgb = np.array(mcolors.to_rgb(C["snowmelt"]))
+# For every mixture, draw a mixing line to the ice-free ocean.
 
 for i in range(len(df_mix_meteoric_ice)):
     blend_ratio = i / (len(df_mix_meteoric_ice) - 1) if len(df_mix_meteoric_ice) > 1 else 0
@@ -461,20 +472,28 @@ for i in range(len(df_mix_meteoric_ice)):
     ax.scatter(prime(mix["mix_d18O"]), mix["mix_Dp17O"], marker="|", c="k", s=1, zorder = 9)
 
 # Add legend -------------------------------------------------------------------
+if age_mean_handles:
+    legend_handles.append(
+        Line2D([], [], color="none", linestyle="none",
+               label=legend_sections["water"])
+    )
+    legend_handles.extend(age_mean_handles)
+
 legend = ax.legend(handles=legend_handles, loc='lower left',
                    fancybox=False, markerscale=0.9,
-                   framealpha=1, fontsize=6, edgecolor="k", facecolor="none")
+                   framealpha=1, fontsize=5, handletextpad=0.3, labelspacing=0.25,
+                   edgecolor="k", facecolor="none")
 for text in legend.get_texts():
     if text.get_text() in legend_sections.values():
         text.set_weight("bold")
 
 
-# Save figure
+# Save figure ------------------------------------------------------------------
 save_figure(fig, figures_dir, "glendonites")
 
-# Manuscript parts:
+# Manuscript parts -------------------------------------------------------------
 
 print(f'\nModern glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "modern"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "modern"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "modern"])}')
 print(f'pre-PETM glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "pre-PETM"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "pre-PETM"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "pre-PETM"])}')
 print(f'PETM glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "PETM"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "PETM"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "PETM"])}')
-print(f'early Eocene glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "early Eocene"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "early Eocene"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "early Eocene"])}')
+print(f'post-PETM glendonites: ∆17O = {df_carbonates[df_carbonates["age"] == "post-PETM"]["Dp17O_AC"].mean():.0f} ppm and d18O = {df_carbonates[df_carbonates["age"] == "post-PETM"]["d18O_AC"].mean():.1f} ‰. Count = {len(df_carbonates[df_carbonates["age"] == "post-PETM"])}')

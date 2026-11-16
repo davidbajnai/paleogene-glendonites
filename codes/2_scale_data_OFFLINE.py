@@ -118,13 +118,13 @@ def scale_data(df: pd.DataFrame) -> pd.DataFrame:
             if np.isnan(data["Dp17OError"]).any() == False:
                 ax1.errorbar(data["dateTimeMeasured"], data["Dp17O"],
                              yerr=data["Dp17OError"],
-                             fmt="none", color=C["error_gray"], zorder=0)
+                             fmt="none", color=C["cgray2"], zorder=0)
             ax2.scatter(data["dateTimeMeasured"], data["pCO2Mismatch"],
                         marker=markers[cat], fc=colors[cat])
             if np.isnan(data["pCO2Mismatch_error"]).any() == False:
                 ax2.errorbar(data["dateTimeMeasured"], data["pCO2Mismatch"],
                              yerr=data["pCO2Mismatch_error"],
-                             fmt="none", color=C["error_gray"], zorder=0)
+                             fmt="none", color=C["cgray2"], zorder=0)
 
 
         # Add legend -----------------------------------------------------------
@@ -228,7 +228,7 @@ for cat in categories:
     ax1.errorbar(prime(df["d18O_scaled"]), df["Dp17O_scaled"],
                  yerr=df["Dp17OError"],
                  xerr=df["d18OError"],
-                 fmt="none", color=C["error_gray"], zorder=0)
+                 fmt="none", color=C["cgray2"], zorder=0)
 
 # Match the average panel to the replicate limits after autoscaling.
 ylim = ax1.get_ylim()
@@ -242,7 +242,7 @@ for cat in categories:
     ax2.errorbar(prime(df_avg["d18O_CO2"]), df_avg["Dp17O_CO2"],
                  yerr=df_avg["Dp17O_error"],
                  xerr=df_avg["d18O_error"],
-                 fmt="none", color=C["error_gray"], zorder=0)
+                 fmt="none", color=C["cgray2"], zorder=0)
 
 
 ax2.set_ylim(ylim)

@@ -531,8 +531,8 @@ for ax in fig.get_axes():
             size=12, weight="bold", ha="left", va="top",
             transform=ax.transAxes)
 
-dark_gray = C["sample_dark_gray"]
-light_gray = C["sample_light_gray"]
+dark_gray = C["cgray7"]
+light_gray = C["cgray3"]
 sample_styles = {
     "Congo fan": {"fc": dark_gray, "ec": dark_gray},
     "South Georgia": {"fc": light_gray, "ec": dark_gray},

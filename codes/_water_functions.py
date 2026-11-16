@@ -252,35 +252,35 @@ def plot_water_compositions(state: dict[str, Any], figures_dir: Path) -> None:
                 )
 
     ax.scatter(prime(state["df_antarctic_combined"]["δ18O"]), state["df_antarctic_combined"]["Dp17O"],
-               marker='o', fc=C["antarctic"], ec="none", alpha=0.5, zorder=2, label="Antarctic ice and snow")
+               marker='o', fc=C["cyan8"], ec="none", alpha=0.5, zorder=2, label="Antarctic ice and snow")
     ax.scatter(prime(state["d18O_antarctic"]), state["Dp17O_antarctic"],
-               marker="*", fc=C["antarctic"], ec="k", s=80, zorder=10)
+               marker="*", fc=C["cyan8"], ec="k", s=80, zorder=10)
 
     ax.scatter(prime(state["df_greenland_combined"]["δ18O"]), state["df_greenland_combined"]["Dp17O"],
-               marker='o', fc=C["greenland"], ec="none", alpha=0.5, zorder=2, label="Greenland snow")
+               marker='o', fc=C["cyan5"], ec="none", alpha=0.5, zorder=2, label="Greenland snow")
 
     ax.scatter(prime(state["d18O_greenland"]), state["Dp17O_greenland"],
-               marker="*", fc=C["greenland"], ec="k", zorder=10)
+               marker="*", fc=C["cyan5"], ec="k", zorder=10)
 
     ax.scatter(prime(state["d18O_greenland_shifted"]), state["Dp17O_greenland_shifted"],
-               marker="*", fc=C["greenland"], ec="k", s=80, zorder=10)
+               marker="*", fc=C["cyan5"], ec="k", s=80, zorder=10)
     ax.annotate("", xy=(prime(state["d18O_greenland_shifted"]), state["Dp17O_greenland_shifted"]),
                 xytext=(prime(state["d18O_greenland"]), state["Dp17O_greenland"]),
                 arrowprops=dict(arrowstyle="-|>", color="k", lw=0.5, connectionstyle="arc3,rad=3"),
                 )
 
     ax.scatter(prime(state["df_meteoric_combined"]["δ18O"]), state["df_meteoric_combined"]["Dp17O"],
-               marker='o', fc=C["meteoric"], ec="none", zorder=2, alpha=0.5,
+               marker='o', fc=C["turquoise4"], ec="none", zorder=2, alpha=0.5,
                label="meteoric waters")
 
     ax.scatter(prime(state["d18O_meteoric_water"]), state["Dp17O_meteoric_water"],
-               marker="*", fc=C["meteoric"], ec="k", zorder=10)
+               marker="*", fc=C["turquoise4"], ec="k", zorder=10)
     ax.text(prime(state["d18O_meteoric_water"]) + 2, state["Dp17O_meteoric_water"],
             f"modeled modern\nmeteoric water\n({state['latitude']}° N, {state['altitude']} m)",
-            va="center", ha="left", color=C["meteoric"], fontsize=6,
+            va="center", ha="left", color=C["turquoise4"], fontsize=6,
             bbox=dict(fc="white", ec="none", pad=0.2, alpha=0.8))
     ax.scatter(prime(state["d18O_meteoric_water_shifted"]), state["Dp17O_meteoric_water_shifted"],
-               marker="*", fc=C["meteoric"], ec="k", s=80, zorder=10)
+               marker="*", fc=C["turquoise4"], ec="k", s=80, zorder=10)
     ax.annotate("", xy=(prime(state["d18O_meteoric_water_shifted"]), state["Dp17O_meteoric_water_shifted"]),
                 xytext=(prime(state["d18O_meteoric_water"]), state["Dp17O_meteoric_water"]),
                 arrowprops=dict(arrowstyle="-|>", color="k", lw=0.5, connectionstyle="arc3,rad=3"),
